@@ -83,8 +83,8 @@ PKGOPS_VERSION             the pinned pkgops release (v0.1.0)
 A push to `master` runs `build-and-publish.yml`:
 
 1. **build** job: `scripts/check-pkgops.sh`, install the pinned pkgops, `scripts/baseline.sh` (`pkgops fetch` from the live
-   site, or from the GitHub Releases archive when the site has no index), `scripts/changed.sh` (packages whose
-   `main/<pkg>/` changed, plus any whose current version is missing from the baseline index), `scripts/build-pkg.sh`
+   site, or from the GitHub Releases archive when the site has no index), `scripts/changed.sh` (the packages whose
+   current version is missing from the baseline index, and nothing else: touching files, scripts or the pin builds nothing), `scripts/build-pkg.sh`
    (fetch source with sha256 check, prebuild, `pkgops build --abi all`), then an unsigned `pkgops repo` + `pkgops verify`
    in the runner. Pull requests and other branches stop here: **no signing, no publishing**.
 2. **publish** job (master only, GitHub Environment `signing`): fetches the baseline again, writes the key to
@@ -94,7 +94,9 @@ A push to `master` runs `build-and-publish.yml`:
    uploads the site as the Pages artifact.
 3. **deploy** job: `actions/deploy-pages`. The site is an artifact; no binary is ever in git or a `gh-pages` branch.
 
-Unchanged packages are not rebuilt: their files come from the baseline. A concurrency group (`publish`) serialises
+Packages that are already published are never rebuilt: the published index is the only trigger (a package is built when its
+version is not in it), so a change to a script, the pin or a workflow rebuilds nothing, and a real change to a package
+bumps its version (`scripts/check-pkgops.sh` insists on it). Their files come from the baseline. A concurrency group (`publish`) serialises
 publishes. Nothing is deleted automatically: no `--keep`, no `--replace`. Builds are reproducible per package
 (`SOURCE_DATE_EPOCH` = commit time of `main/<pkg>`), so a re-run never produces a second file for one version.
 

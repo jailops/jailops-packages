@@ -2,13 +2,13 @@
 # changed.sh BASE HEAD [SITE_DIR]
 #
 # Prints (one line, space separated) the packages to build:
-#   - every package whose files under main/ differ between BASE and HEAD, and
-#   - every package whose current version is missing from SITE_DIR/pkgops-index.json for one of its ABIs
-#     (a baseline fetched with scripts/baseline.sh): that is what makes a first run, a manual re-run after a failed
-#     deploy and a restore from the archive build exactly what the site lacks, and nothing else.
-# When BASE is empty, all zeros or unknown to git (new branch, force push) nothing can be diffed: with a SITE_DIR the
-# index decides alone, without one every package is printed.
-# Unchanged packages are NOT rebuilt: their files come from the baseline.
+#   - with SITE_DIR (a baseline fetched with scripts/baseline.sh): every package whose current version is missing from
+#     SITE_DIR/pkgops-index.json for one of its ABIs, and nothing else. The index decides alone, BASE and HEAD are not
+#     used: that is what makes a first run, a manual re-run after a failed deploy and a restore from the archive build
+#     exactly what the site lacks.
+#   - without SITE_DIR: the packages whose files under main/ differ between BASE and HEAD, or every package when BASE
+#     is empty, all zeros or unknown to git.
+# Packages that are already published are NEVER rebuilt: their files come from the baseline.
 set -eu
 . "$(dirname "$0")/lib.sh"
 
@@ -17,26 +17,31 @@ all=$(all_pkgs | tr '\n' ' ')
 out=" "
 add() { case "$out" in *" $1 "*) ;; *) out="$out$1 " ;; esac; }
 
-have_base=
-if [ -n "$BASE" ] && [ "$BASE" != 0000000000000000000000000000000000000000 ] &&
-   git -C "$REPO_ROOT" cat-file -e "$BASE^{commit}" 2>/dev/null; then have_base=1; fi
-
-if [ -n "$have_base" ]; then
-  for f in $(git -C "$REPO_ROOT" diff --name-only "$BASE" "$HEAD" -- main/); do
-    p=${f#main/}; p=${p%%/*}
-    case " $all " in *" $p "*) add "$p" ;; esac   # a deleted package directory is not built
-  done
-elif [ -z "$SITE" ]; then
-  for p in $all; do add "$p"; done
-fi
-
 if [ -n "$SITE" ]; then
+  # The published index decides alone: a package is built when its current version is missing from the index for
+  # one of its ABIs, and ONLY then. Touching files under main/ without bumping the version builds nothing (a published
+  # version is immutable; scripts/check-pkgops.sh makes a real change bump the version), and a change to scripts/,
+  # PKGOPS_VERSION or a workflow rebuilds nothing either. A first run, a manual re-run after a failed deploy and a
+  # restore from the archive build exactly what the site lacks.
   for p in $all; do
     v=$(mf_get "$p" version)
     for abi in $(abis_of "$p"); do
       index_has "$SITE" "$p" "$v" "$abi" || { add "$p"; break; }
     done
   done
+else
+  # No baseline to compare with: fall back to the git diff, or to everything when there is nothing to diff against.
+  have_base=
+  if [ -n "$BASE" ] && [ "$BASE" != 0000000000000000000000000000000000000000 ] &&
+     git -C "$REPO_ROOT" cat-file -e "$BASE^{commit}" 2>/dev/null; then have_base=1; fi
+  if [ -n "$have_base" ]; then
+    for f in $(git -C "$REPO_ROOT" diff --name-only "$BASE" "$HEAD" -- main/); do
+      p=${f#main/}; p=${p%%/*}
+      case " $all " in *" $p "*) add "$p" ;; esac   # a deleted package directory is not built
+    done
+  else
+    for p in $all; do add "$p"; done
+  fi
 fi
 
 echo $out
