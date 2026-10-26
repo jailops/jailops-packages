@@ -186,6 +186,15 @@ if [ -f "$bp" ]; then
   grep -Fxq '.baseline-cache/' "$REPO_ROOT/.gitignore" || fail ".gitignore: .baseline-cache/ is missing"
 fi
 
+# is_published NAME VERSION: the live index lists this version (PUBLISHED_INDEX: a file to read instead of SITE_URL)
+pubidx=
+if [ -n "${PUBLISHED_INDEX:-}" ]; then pubidx=$(cat "$PUBLISHED_INDEX" 2>/dev/null || true)
+elif [ -n "${SITE_URL:-}" ] && command -v curl >/dev/null 2>&1; then pubidx=$(curl -fsS "$SITE_URL/pkgops-index.json" 2>/dev/null || true); fi
+is_published() {
+  [ -n "$pubidx" ] && command -v jq >/dev/null 2>&1 || return 0
+  printf '%s' "$pubidx" | jq -e --arg n "$1" --arg v "$2" 'any(.packages[]; .name == $n and .version == $v)' >/dev/null 2>&1
+}
+
 # immutability against a base commit
 if [ -n "$BASE" ] && git -C "$REPO_ROOT" cat-file -e "$BASE^{commit}" 2>/dev/null; then
   for p in $pkgs; do
@@ -197,6 +206,9 @@ if [ -n "$BASE" ] && git -C "$REPO_ROOT" cat-file -e "$BASE^{commit}" 2>/dev/nul
     [ "$old" != "$new" ] || {
       if [ "$changed" = "main/$p/upstream.yaml " ] &&
          [ "$(git -C "$REPO_ROOT" show "$BASE:main/$p/upstream.yaml" | yget sha256)" = PENDING ]; then continue; fi
+      # Only a PUBLISHED version is immutable: a version the live index does not list can still be corrected. When the
+      # index cannot be read (offline, no jq, no SITE_URL) the check stays strict.
+      is_published "$p" "$new" || continue
       fail "$p: main/$p changed ($changed) but the version is still $old: a published version is immutable. Bump it: scripts/bump-version.sh --revision $p"
     }
   done
