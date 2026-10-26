@@ -1,0 +1,30 @@
+name: age-plugin-sshagent
+version: 0.1.0
+origin: jailops/age-plugin-sshagent
+comment: age plugin deriving X25519 identities from ssh-agent signatures
+desc: |
+  An age plugin that derives X25519 identities from deterministic ssh-agent
+  signatures: the ssh private key never leaves the agent and no new secret is
+  stored on disk. Recipients are native age1... keys, so senders need only
+  stock age. Fork of eszio/age-plugin-sshagent.
+www: https://github.com/unidoc/age-plugin-sshagent
+maintainer: packages@jailops.net
+license: BSD3CLAUSE
+categories: [security]
+abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]
+min_release: "15.1"
+
+build:
+  type: go
+  dir: src
+  package: .
+  output: build/${ARCH}/age-plugin-sshagent
+  ldflags: -s -w -X main.version=${VERSION}
+
+files:
+  - source: build/${ARCH}/age-plugin-sshagent
+    destination: bin/age-plugin-sshagent
+  - source: src/README.md
+    destination: share/doc/age-plugin-sshagent/README.md
+  - source: src/LICENSE
+    destination: share/doc/age-plugin-sshagent/LICENSE

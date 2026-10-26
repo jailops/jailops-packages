@@ -1,0 +1,12 @@
+# See main/jailops-client/upstream.yaml for the meaning of the keys.
+# Recipe from unidoc-aports/main/isms/APKBUILD (production): the same tarball URL pattern, prebuild and ldflags.
+group: isms
+repo: unidoc/isms
+tag_prefix: v
+tarball: https://github.com/${repo}/archive/refs/tags/${tag}.tar.gz
+strip_components: 1
+sha256: 962d74de9da3f6dca6caa5028876deee2787d33c8e9c72d17b20397246cfa70f   # sha512 equals the APKBUILD's
+token_env:
+# scripts/sync-migrations.sh, cd web && npm ci && npm run build, copy web/dist into cmd/isms/web/dist (Node 24 + npm)
+prebuild: isms-web
+bump_note: The web UI build, the migrations and the install message (server.env, signing key) are not re-verified by the bump; read the isms release notes and the build log.

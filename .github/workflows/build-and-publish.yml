@@ -1,0 +1,200 @@
+name: Build and publish
+
+# FreeBSD 15.1+ packages for amd64 and aarch64, built with PkgOps (the only packaging tool here), published as a signed
+# pkg repository to GitHub Pages at https://pkg.jailops.net/${ABI}/latest. UNVERIFIED: this workflow has not run on GitHub.
+#
+#   pull request / other branch: check, baseline, build, assemble an UNSIGNED repository in a temp dir and verify it.
+#                                No secret except the optional source token, no signing, no publishing.
+#   push to master:              the same, then the `publish` job (environment `signing`) signs and archives, and
+#                                the `deploy` job deploys the site with actions/deploy-pages.
+#
+# The site is an artifact rebuilt every run: baseline (pkgops fetch from the live site, or the Releases archive) plus
+# the packages built now. Nothing is deleted automatically: a version leaves the site only through prune.yaml.
+#
+# One-time setup this file cannot do: see "Maintainers" in README.md.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "main/**"
+      - "scripts/**"
+      - "static/**"
+      - "pkgops-repo.yaml"
+      - "prune.yaml"
+      - "KEY_FINGERPRINT"
+      - "PKGOPS_VERSION"
+      - ".github/workflows/build-and-publish.yml"
+      - ".github/actions/**"
+  pull_request:
+    paths:
+      - "main/**"
+      - "scripts/**"
+      - "pkgops-repo.yaml"
+      - "prune.yaml"
+      - "PKGOPS_VERSION"
+      - ".github/workflows/build-and-publish.yml"
+      - ".github/actions/**"
+  workflow_dispatch:
+    inputs:
+      first_run:
+        description: "Very first publish: there is no site and no archive to fetch a baseline from"
+        type: boolean
+        default: false
+
+env:
+  GOTOOLCHAIN: auto
+  SITE_URL: https://pkg.jailops.net
+
+permissions:
+  contents: read
+
+# Every publish rebuilds the whole site from the live one: two overlapping runs would revert each other.
+concurrency:
+  group: ${{ github.ref == 'refs/heads/master' && 'publish' || format('build-{0}', github.ref) }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      pkgs: ${{ steps.changed.outputs.pkgs }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check the repository (manifests, policy, GOTOOLCHAIN, no keys, immutability)
+        env:
+          CHECK_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: sh scripts/check-pkgops.sh
+
+      - uses: ./.github/actions/setup-pkgops
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Baseline (what is published now)
+        env:
+          BASELINE_FIRST_RUN: ${{ inputs.first_run && '1' || '' }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: sh scripts/baseline.sh site "$SITE_URL"
+
+      - name: Which packages need building
+        id: changed
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          pkgs=$(sh scripts/changed.sh "$BASE" HEAD site)
+          echo "packages to build: ${pkgs:-none}"
+          echo "pkgs=$pkgs" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        if: steps.changed.outputs.pkgs != ''
+        env:
+          PKGS: ${{ steps.changed.outputs.pkgs }}
+          # the secret named by token_env in main/*/upstream.yaml; empty on fork pull requests (the package is then skipped)
+          JAILOPS_SOURCE_TOKEN: ${{ secrets.JAILOPS_SOURCE_TOKEN }}
+        run: sh scripts/build-pkg.sh $PKGS
+
+      - name: Assemble an unsigned repository and verify it (policy, prune.yaml, catalogs)
+        run: |
+          set -eu
+          mkdir -p dist
+          if [ -n "$(find dist -name '*.pkg' -print -quit)" ]; then
+            pkgops repo --repo site --policy pkgops-repo.yaml --prune prune.yaml dist
+          fi
+          if [ -f site/pkgops-index.json ]; then
+            for abi in FreeBSD:15:amd64 FreeBSD:15:aarch64; do pkgops verify "site/$abi/latest"; done
+            sh scripts/verify-site.sh site
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        with:
+          name: dist
+          path: dist
+          if-no-files-found: ignore
+
+  publish:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    # The signing key lives only in this Environment (a repository secret can be overwritten by anyone with write
+    # access; an environment secret needs admin). The job never runs for a pull request or a branch other than master.
+    environment: signing
+    permissions:
+      contents: write   # the archive: one GitHub release per package version
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-pkgops
+
+      - name: Write the signing key (umask 077, in RUNNER_TEMP, removed at the end)
+        env:
+          PKG_REPO_KEY: ${{ secrets.PKG_REPO_KEY }}
+        run: |
+          set -eu
+          if [ -z "$PKG_REPO_KEY" ]; then
+            echo "::error title=PKG_REPO_KEY is not set::Create the Environment 'signing' with the secret PKG_REPO_KEY (README, Maintainers) before the first publish. Nothing was published."
+            exit 1
+          fi
+          umask 077
+          key="$RUNNER_TEMP/pkg-repo.key"
+          printf '%s\n' "$PKG_REPO_KEY" > "$key"
+          echo "KEY_FILE=$key" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+        continue-on-error: true   # nothing was built (a prune.yaml change, for example)
+
+      - name: Baseline again (the freshest published state, right before signing)
+        env:
+          BASELINE_FIRST_RUN: ${{ inputs.first_run && '1' || '' }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: sh scripts/baseline.sh site "$SITE_URL"
+
+      - name: Site files derived from the key (public key, fingerprint, CNAME, index.html)
+        run: sh scripts/site-files.sh site "$KEY_FILE"
+
+      - name: Add the packages and sign
+        run: |
+          set -eu
+          mkdir -p dist
+          if [ -n "$(find dist -name '*.pkg' -print -quit)" ]; then set -- dist; else set --; fi
+          pkgops repo --repo site --policy pkgops-repo.yaml --prune prune.yaml --key "$KEY_FILE" "$@"
+
+      - name: Verify the signed repository
+        run: |
+          set -eu
+          for abi in FreeBSD:15:amd64 FreeBSD:15:aarch64; do pkgops verify "site/$abi/latest" --pubkey site/jailops.pub; done
+          sh scripts/verify-site.sh site
+
+      - name: Archive every published package in GitHub Releases (idempotent; before the deploy, from the same bytes)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pkgops archive push --repo "$GITHUB_REPOSITORY" --from site
+
+      - name: Remove the signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/pkg-repo.key"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

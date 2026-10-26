@@ -1,0 +1,17 @@
+# Prune manifest: published files the next publish leaves OUT of the site (GitHub Pages).
+#
+# This file is the ONLY way anything leaves the site. Nothing is ever deleted automatically (no --keep, no
+# --replace). Change it by hand or through the PkgOps admin UI, in a reviewed commit; the next publish applies it.
+# Pruning never touches the permanent archive in GitHub Releases (that needs `pkgops archive prune`, separate and confirmed).
+#
+# Make entries with:  pkgops prune --plan --from https://pkg.jailops.net --older-than 90d     (writes nothing but a plan; -n for a dry run)
+# An entry looks like:
+#   - abi: FreeBSD:15:amd64
+#     name: hello
+#     version: "0.1.0"
+#     reason: superseded            # one line
+#     force: false                  # true is needed to prune the newest version of a package
+#     requested_by: alice@example.com
+#     requested: "2026-10-26T11:00:00Z"
+schema: 1
+entries: []

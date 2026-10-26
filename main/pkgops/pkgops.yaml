@@ -1,0 +1,30 @@
+name: pkgops
+version: 0.1.0
+origin: jailops/pkgops
+comment: Build, sign and host native FreeBSD packages and pkg repositories
+desc: |
+  pkgops builds native FreeBSD .pkg packages and signed pkg repositories from
+  Linux, macOS or FreeBSD, without a FreeBSD builder or a ports tree. This
+  package is the command line tool only (no service, no web UI service unit);
+  `pkgops serve` can be run by hand or from your own rc.d script.
+www: https://github.com/jailops/jailops-pkgops
+maintainer: packages@jailops.net
+license: BSD2CLAUSE
+categories: [sysutils]
+abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]
+min_release: "15.1"
+
+build:
+  type: go
+  dir: src
+  package: ./cmd/pkgops
+  output: build/${ARCH}/pkgops
+  ldflags: -s -w -X main.version=${VERSION}
+
+files:
+  - source: build/${ARCH}/pkgops
+    destination: bin/pkgops
+  - source: src/README.md
+    destination: share/doc/pkgops/README.md
+  - source: src/LICENSE
+    destination: share/doc/pkgops/LICENSE

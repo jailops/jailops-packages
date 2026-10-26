@@ -1,0 +1,30 @@
+# secrets: never commit a key, in any form
+*.key
+*.rsa
+*.rsa.pem
+*.pem
+*.p12
+.env
+
+# build and publish output (the site is a workflow artifact, never committed)
+site/
+dist/
+main/*/src/
+main/*/build/
+.work/
+work/
+tmp/
+.pkgops-src/
+
+# local scratch
+temp/
+
+# packages and repository files are artifacts: they live in GitHub Releases and on Pages, never in git
+*.pkg
+repo/
+*.pub
+
+# editors and OS
+.DS_Store
+*.swp
+*~

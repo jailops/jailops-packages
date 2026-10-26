@@ -1,0 +1,62 @@
+name: jailops
+version: 0.1.0
+origin: jailops/jailops
+comment: JailOps, ZFS-native jail management - daemon and privileged helper
+desc: |
+  jailopsd, the JailOps daemon (REST API and embedded web console), and
+  jailops-priv, the small privileged helper it uses, with their rc.d scripts and
+  sample configuration. Needs ZFS. After installing run: jailops-priv init -pool POOL
+www: https://jailops.net
+maintainer: packages@jailops.net
+license: BSD2CLAUSE
+categories: [sysutils]
+abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]
+min_release: "15.1"
+
+deps:
+  # same version as the jailops-client package in this repository (scripts/check-pkgops.sh enforces it)
+  - {name: jailops-client, origin: jailops/jailops-client, version: "0.1.0"}
+
+build:
+  type: go
+  dir: src
+  packages:
+    - {package: ./cmd/jailopsd}
+    - {package: ./cmd/jailops-priv}
+  ldflags: -s -w -X main.version=${VERSION}
+
+files:
+  - source: build/${ARCH}/jailopsd
+    destination: sbin/jailopsd
+  - source: build/${ARCH}/jailops-priv
+    destination: libexec/jailops-priv
+  # samples come from the fetched source tree, so they cannot drift from the code
+  - source: src/packaging/jailopsd.yaml
+    destination: etc/jailops/jailopsd.yaml.sample
+  - source: src/packaging/priv.conf.sample
+    destination: etc/jailops/priv.conf.sample
+  - source: src/README.md
+    destination: share/doc/jailops/README.md
+  - source: src/LICENSE.md
+    destination: share/doc/jailops/LICENSE.md
+  - source: src/docs/design.md
+    destination: share/doc/jailops/design.md
+
+services:
+  - {name: jailopsd, source: src/packaging/rc.d/jailopsd}
+  - {name: jailops_priv, source: src/packaging/rc.d/jailops_priv}
+
+dirs:
+  - {path: /var/db/jailops, owner: jailops, group: jailops, mode: 0750}
+
+users:
+  - {name: jailops, home: /var/db/jailops, comment: JailOps daemon}
+
+scripts:
+  post-install: |
+    echo "JailOps is installed. Next, as root:"
+    echo "  cp /usr/local/etc/jailops/jailopsd.yaml.sample /usr/local/etc/jailops/jailopsd.yaml   (set pool:)"
+    echo "  cp /usr/local/etc/jailops/priv.conf.sample /usr/local/etc/jailops/priv.conf           (set storage-root)"
+    echo "  jailops-priv init -pool POOL"
+    echo "  sysrc jailops_priv_enable=YES jailopsd_enable=YES"
+    echo "  service jailops_priv start && service jailopsd start"

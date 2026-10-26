@@ -1,0 +1,11 @@
+# See main/jailops-client/upstream.yaml for the meaning of the keys.
+group: jailops
+repo: jailops/jailops
+tag_prefix: v
+tarball: https://api.github.com/repos/${repo}/tarball/${tag}
+strip_components: 1
+sha256: PENDING
+token_env: JAILOPS_SOURCE_TOKEN
+# the backup node console is embedded in jailops-backupd (web/apps.json: backup -> internal/backupui)
+prebuild: jailops-web:backup
+bump_note: jailops runs as root-adjacent daemons and consoles (jailopsd, jailops-priv, jailops-backupd): read the release notes for rc.d, config and API changes before merging.

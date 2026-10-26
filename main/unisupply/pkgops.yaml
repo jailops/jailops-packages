@@ -1,0 +1,27 @@
+# unisupply: build recipe ported from unidoc-aports/main/unisupply/APKBUILD (in production there);
+# the FreeBSD packaging is NOT yet installed on a FreeBSD host.
+name: unisupply
+version: 0.7.0
+origin: jailops/unisupply
+comment: Go supply chain security analysis
+desc: |
+  unisupply analyses the supply chain of Go projects: known vulnerabilities,
+  weak maintainers, typosquatting and CI/CD risks. Command line tool only.
+www: https://github.com/unidoc/unisupply
+maintainer: packages@jailops.net
+license: APACHE20
+categories: [security]
+abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]
+min_release: "15.1"
+
+build:
+  type: go
+  dir: src
+  package: ./cmd/unisupply
+  output: build/${ARCH}/unisupply
+
+files:
+  - source: build/${ARCH}/unisupply
+    destination: bin/unisupply
+  - source: src/LICENSE
+    destination: share/doc/unisupply/LICENSE

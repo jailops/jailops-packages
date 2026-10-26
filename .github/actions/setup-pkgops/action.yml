@@ -1,0 +1,33 @@
+name: Set up pkgops
+description: >
+  Installs the pkgops pinned in PKGOPS_VERSION (a release tag such as v0.1.0, or a commit SHA) and the Go toolchain.
+  Needs the repository checked out first. The tag must exist in github.com/jailops/jailops-pkgops (a release with
+  pkgops_X.Y.Z_linux_<arch>.tar.gz and checksums.txt). The release binary is verified against checksums.txt; when
+  there is none, or the pin is a SHA, pkgops is built from the checkout of that ref. The vanity import
+  jailops.net/pkgops is not used.
+runs:
+  using: composite
+  steps:
+    - name: Read the pin
+      id: pin
+      shell: bash
+      run: echo "ref=$(tr -d ' \n\r' < PKGOPS_VERSION)" >> "$GITHUB_OUTPUT"
+    - uses: actions/checkout@v4
+      with:
+        repository: jailops/jailops-pkgops
+        ref: ${{ steps.pin.outputs.ref }}
+        path: .pkgops-src
+    - uses: actions/setup-go@v5
+      with:
+        go-version: stable
+        cache: false
+    - name: Install pkgops
+      shell: bash
+      env:
+        GOTOOLCHAIN: auto
+        PKGOPS_VERSION: ${{ steps.pin.outputs.ref }}
+        PKGOPS_SRC: ${{ github.workspace }}/.pkgops-src
+      run: |
+        set -eu
+        bin=$(sh .pkgops-src/scripts/install-pkgops.sh "$RUNNER_TEMP/pkgops-bin" | tail -n 1)
+        echo "$bin" >> "$GITHUB_PATH"

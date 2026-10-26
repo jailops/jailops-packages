@@ -1,0 +1,35 @@
+name: jailops-client
+version: 0.1.0
+origin: jailops/jailops-client
+comment: JailOps command line client and fleet tool
+desc: |
+  The jailops command line client and jailops-sync, the declarative fleet tool.
+  Install this on any machine that talks to a JailOps daemon (jailopsd); the
+  daemon itself is the separate package "jailops". jailops-sync uses git.
+www: https://jailops.net
+maintainer: packages@jailops.net
+license: BSD2CLAUSE
+categories: [sysutils]
+abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]
+min_release: "15.1"
+
+deps:
+  - {name: git-lite, origin: devel/git, version: "2.56.0"}
+
+build:
+  type: go
+  dir: src
+  packages:
+    - {package: ./cmd/jailops}
+    - {package: ./cmd/jailops-sync}
+  ldflags: -s -w -X main.version=${VERSION}
+
+files:
+  - source: build/${ARCH}/jailops
+    destination: bin/jailops
+  - source: build/${ARCH}/jailops-sync
+    destination: bin/jailops-sync
+  - source: src/README.md
+    destination: share/doc/jailops-client/README.md
+  - source: src/LICENSE.md
+    destination: share/doc/jailops-client/LICENSE.md

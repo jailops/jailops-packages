@@ -1,0 +1,11 @@
+# Repository policy, enforced by `pkgops repo` (and the admin UI): a package for another ABI, or one that
+# declares a lower or missing min_release, is refused. scripts/check-pkgops.sh checks the same things on every PR.
+#
+# FreeBSD 15.1 and later only. Every package manifest must say `min_release: "15.1"`. Do NOT put a package with
+# a higher min_release here: pkg checks it when it reads the catalog, so ONE such package makes `pkg update`
+# fail for the whole repository on every 15.1 host (docs/format.md of PkgOps, "Minimum release").
+schema: 1
+abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]
+min_release: "15.1"
+retention:
+  keep: 5   # only a hint for `pkgops prune --plan`; nothing is ever deleted automatically

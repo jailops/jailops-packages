@@ -1,0 +1,66 @@
+name: Check for updates
+
+# Daily: looks for a newer upstream release of every source group (main/*/upstream.yaml) and of pkgops itself
+# (PKGOPS_VERSION), opens one pull request per bump, and writes a summary table to the run page. It never merges
+# anything. The build workflow runs on each bump branch (dispatched here, because a PR opened with the workflow token
+# may not start pull_request workflows: GitHub rule, UNVERIFIED here); that run builds and verifies, it never signs or
+# publishes (it is not master). Monthly (1st, 06:30 UTC): package names against the official FreeBSD repository.
+# Logic: .github/scripts/check-updates.sh (tests: sh tests/run.sh).
+#
+# Optional secret UPDATE_TOKEN (a token that may open PRs and run workflows): used instead of GITHUB_TOKEN when set.
+# It is only used by the `check` job, as GH_TOKEN, and never printed.
+on:
+  schedule:
+    - cron: "0 6 * * *"
+    - cron: "30 6 1 * *"
+  workflow_dispatch:
+    inputs:
+      strict:
+        description: "Fail the run at the end when an upstream was unreachable"
+        type: boolean
+        default: false
+      collisions:
+        description: "Also run the check against the official FreeBSD package names"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# two runs would open the same PR twice
+concurrency:
+  group: check-updates
+  cancel-in-progress: false
+
+jobs:
+  check:
+    # not for the monthly schedule, which has its own job (the daily schedule fires on the 1st as well)
+    if: github.event.schedule != '30 6 1 * *'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ secrets.UPDATE_TOKEN || github.token }}
+      # the secret named by token_env in main/*/upstream.yaml (a private source repository)
+      JAILOPS_SOURCE_TOKEN: ${{ secrets.JAILOPS_SOURCE_TOKEN }}
+      STRICT: ${{ inputs.strict && '1' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check upstreams, open pull requests, write the summary
+        run: sh .github/scripts/check-updates.sh all
+
+  collisions:
+    if: github.event.schedule == '30 6 1 * *' || (github.event_name == 'workflow_dispatch' && inputs.collisions)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      STRICT: ${{ inputs.strict && '1' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package names against the official FreeBSD repository
+        run: sh .github/scripts/check-updates.sh collisions

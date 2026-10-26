@@ -1,0 +1,10 @@
+# See main/jailops-client/upstream.yaml for the meaning of the keys.
+# Recipe from unidoc-aports/main/unisupply/APKBUILD (production).
+group: unisupply
+repo: unidoc/unisupply
+tag_prefix: v
+tarball: https://github.com/${repo}/archive/refs/tags/${tag}.tar.gz
+strip_components: 1
+sha256: e2ebf956fe4c86c731cc42c5e6b7990e6d32f9377378a21ef4d50e9af787d55d   # sha512 equals the APKBUILD's
+token_env:
+prebuild:

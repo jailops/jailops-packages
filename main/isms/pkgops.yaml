@@ -1,0 +1,84 @@
+# isms: build recipe ported from unidoc-aports/main/isms/APKBUILD (in production there); the FreeBSD parts
+# (paths, user, service:, post-install text) are NOT yet run on a FreeBSD host.
+name: isms
+version: 0.8.1
+origin: jailops/isms
+comment: Open-source ISMS platform - git-native documents, PostgreSQL collaboration, single binary
+desc: |
+  isms is an information security management system platform: git-native
+  documents, PostgreSQL collaboration, one binary with the Vue web interface
+  embedded. It needs a PostgreSQL database (not installed by this package).
+  Nothing is generated at install or start: the package ships
+  /usr/local/etc/isms/server.env (mode 0600, owner isms) with ISMS_SECRET empty;
+  the install message lists the exact commands to set the secret, create the
+  signing key and run the migrations. Enable with: sysrc isms_enable=YES
+www: https://github.com/unidoc/isms
+maintainer: packages@jailops.net
+license: APACHE20
+categories: [security]
+abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]
+min_release: "15.1"
+
+build:
+  type: go
+  dir: src
+  package: ./cmd/isms
+  output: build/${ARCH}/isms
+  # as in the APKBUILD (-trimpath is added by pkgops)
+  ldflags: -s -w -X main.version=${VERSION} -X main.commitHash=release -X main.commitCount=0
+
+files:
+  - source: build/${ARCH}/isms
+    destination: bin/isms
+  # always refreshed reference copy ...
+  - source: server.env.sample
+    destination: etc/isms/server.env.sample
+  # ... and the live file: kept on upgrade (a modified copy stays, the new one lands as .pkgnew)
+  - source: server.env.sample
+    destination: etc/isms/server.env
+    config: true
+    mode: 0600
+    owner: isms
+    group: isms
+  - source: src/LICENSE
+    destination: share/doc/isms/LICENSE
+  - source: src/NOTICE
+    destination: share/doc/isms/NOTICE
+
+service:
+  name: isms
+  command: /usr/local/bin/isms
+  args: [server, serve]
+  user: isms
+  restart: true
+  restart_delay: 5          # the APKBUILD's initd respawns every 5 s, never gives up
+  env:
+    ISMS_SERVER_ENV: /usr/local/etc/isms/server.env
+  log:
+    file: /var/log/isms.log
+    rotate: 7
+
+dirs:
+  - {path: /var/db/isms, owner: isms, group: isms, mode: 0750}
+  - {path: /var/db/isms/private, owner: isms, group: isms, mode: 0700}
+
+users:
+  - {name: isms, home: /var/db/isms, comment: ISMS service}
+
+scripts:
+  post-install: |
+    cat <<'MSG'
+    isms is installed but NOT configured or enabled. Nothing is generated for you.
+    Do these steps once, as root (PostgreSQL must already exist; it is not part of this package):
+      1. Edit /usr/local/etc/isms/server.env: DATABASE_URL, ISMS_BASE_URL, ISMS_SIGNING_EMAIL.
+      2. Set the master secret (JWT signing and encryption of OIDC secrets: back it up, never change it later):
+           sed -i '' "s|^ISMS_SECRET=.*|ISMS_SECRET=$(openssl rand -hex 32)|" /usr/local/etc/isms/server.env
+           chown isms:isms /usr/local/etc/isms/server.env && chmod 600 /usr/local/etc/isms/server.env
+      3. Create the commit signing key (use your ISMS_SIGNING_EMAIL as the comment):
+           su -m isms -c 'ssh-keygen -q -t ed25519 -N "" -C you@example.com -f /var/db/isms/private/isms_key'
+      4. Apply the database schema:
+           env ISMS_SERVER_ENV=/usr/local/etc/isms/server.env su -m isms -c '/usr/local/bin/isms server migrate'
+      5. Start:  sysrc isms_enable=YES && service isms start
+    Template repository (optional): clone your templates repo as the isms user into /var/db/isms/templates (a full clone, never --bare).
+    Reference: /usr/local/etc/isms/server.env.sample
+    MSG

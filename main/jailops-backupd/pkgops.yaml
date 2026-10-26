@@ -1,0 +1,47 @@
+name: jailops-backupd
+version: 0.1.0
+origin: jailops/jailops-backupd
+comment: JailOps backup node
+desc: |
+  The JailOps backup node: stores encrypted, deduplicated backups and never
+  holds the key. It needs a PostgreSQL database for its control plane, but this
+  package does NOT depend on a postgresql package: the database may live on
+  another host or be installed in whatever flavour and version you run. Install
+  and configure PostgreSQL yourself, then see the sample configuration.
+www: https://jailops.net
+maintainer: packages@jailops.net
+license: BSD2CLAUSE
+categories: [sysutils]
+abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]
+min_release: "15.1"
+
+build:
+  type: go
+  dir: src
+  package: ./cmd/jailops-backupd
+  output: build/${ARCH}/jailops-backupd
+  ldflags: -s -w -X main.version=${VERSION}
+
+files:
+  - source: build/${ARCH}/jailops-backupd
+    destination: sbin/jailops-backupd
+  - source: src/packaging/backupd.yaml
+    destination: etc/jailops/backupd.yaml.sample
+  - source: src/LICENSE.md
+    destination: share/doc/jailops-backupd/LICENSE.md
+
+services:
+  - {name: jailops_backupd, source: src/packaging/rc.d/jailops_backupd}
+
+dirs:
+  - {path: /var/db/jailops-backup, owner: jailops-backup, group: jailops-backup, mode: 0750}
+
+users:
+  - {name: jailops-backup, home: /var/db/jailops-backup, comment: JailOps backup node}
+
+scripts:
+  post-install: |
+    echo "jailops-backupd is installed. It needs PostgreSQL (not installed by this package). Next, as root:"
+    echo "  cp /usr/local/etc/jailops/backupd.yaml.sample /usr/local/etc/jailops/backupd.yaml   (hostname, database.dsn_file)"
+    echo "  su -m jailops-backup -c 'jailops-backupd -c /usr/local/etc/jailops/backupd.yaml init --admin NAME'"
+    echo "  sysrc jailops_backupd_enable=YES && service jailops_backupd start"

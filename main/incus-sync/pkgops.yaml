@@ -1,0 +1,30 @@
+name: incus-sync
+version: 0.2.0
+origin: jailops/incus-sync
+comment: Declarative GitOps fleet manager for Incus (client of remote Incus hosts)
+desc: |
+  incus-sync reconciles network address sets, ACLs and container identity,
+  described as YAML in a git repository, against one or more Incus hosts. On
+  FreeBSD it is useful as a CLIENT of remote (Linux) Incus servers: Incus
+  itself does not run on FreeBSD, and this package does not install it.
+www: https://github.com/unidoc/incus-sync
+maintainer: packages@jailops.net
+license: APACHE20
+categories: [sysutils]
+abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]
+min_release: "15.1"
+
+build:
+  type: go
+  dir: src
+  package: ./cmd/incus-sync
+  output: build/${ARCH}/incus-sync
+  ldflags: -s -w -X main.version=${VERSION}
+
+files:
+  - source: build/${ARCH}/incus-sync
+    destination: bin/incus-sync
+  - source: src/README.md
+    destination: share/doc/incus-sync/README.md
+  - source: src/LICENSE.md
+    destination: share/doc/incus-sync/LICENSE.md
