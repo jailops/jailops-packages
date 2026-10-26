@@ -36,7 +36,7 @@ jobs:
   check:
     # not for the monthly schedule, which has its own job (the daily schedule fires on the 1st as well)
     if: github.event.schedule != '30 6 1 * *'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
       pull-requests: write
@@ -55,7 +55,7 @@ jobs:
 
   collisions:
     if: github.event.schedule == '30 6 1 * *' || (github.event_name == 'workflow_dispatch' && inputs.collisions)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     env:

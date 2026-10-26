@@ -167,6 +167,25 @@ if [ -d "$wf" ]; then
   fi
 fi
 
+# the baseline cache: restored in both baseline steps, saved only in the publish job (never for a pull request), and only
+# the .baseline-cache directory, never the key, the site or the workspace
+if [ -f "$bp" ]; then
+  [ "$(grep -c 'uses: actions/cache/save@v4' "$bp")" = 1 ] || fail "build-and-publish.yml: actions/cache/save@v4 must appear exactly once"
+  grep -Eq 'uses: actions/cache(/restore)?@' "$bp" && grep -E 'uses: actions/cache(/restore|/save)?@' "$bp" | grep -vq '@v4' && fail "build-and-publish.yml: pin actions/cache to @v4"
+  [ "$(grep -c 'uses: actions/cache/restore@v4' "$bp")" = 2 ] || fail "build-and-publish.yml: actions/cache/restore@v4 must appear twice (build and publish baseline)"
+  grep -Eq 'uses: actions/cache@' "$bp" && fail "build-and-publish.yml: use actions/cache/restore and /save, not actions/cache (it would save in the build job and in pull requests)"
+  sj=$(awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} /actions\/cache\/save/ {print job}' "$bp" | tr -d ':')
+  [ "$sj" = publish ] || fail "build-and-publish.yml: actions/cache/save must be in the publish job, found in '$sj'"
+  grep -B4 'uses: actions/cache/save@v4' "$bp" | grep -q "github.event_name != 'pull_request'.*refs/heads/master" ||
+    fail "build-and-publish.yml: the cache save step must be conditional on github.event_name != 'pull_request' and master"
+  # the `with:` blocks of the cache steps (up to the next blank line)
+  cblk=$(awk '/uses: actions\/cache\// {c=1} /^[[:space:]]*$/ {c=0} c' "$bp")
+  paths=$(echo "$cblk" | sed -n 's/^[[:space:]]*path:[[:space:]]*//p' | sort -u | tr '\n' ' ')
+  [ "$paths" = ".baseline-cache " ] || fail "build-and-publish.yml: the cache path must be exactly .baseline-cache (found: $paths)"
+  ! echo "$cblk" | grep -Eq 'KEY_FILE|pkg-repo\.key|RUNNER_TEMP|secrets\.|site' || fail "build-and-publish.yml: a cache step mentions the key, a secret or the site"
+  grep -Fxq '.baseline-cache/' "$REPO_ROOT/.gitignore" || fail ".gitignore: .baseline-cache/ is missing"
+fi
+
 # immutability against a base commit
 if [ -n "$BASE" ] && git -C "$REPO_ROOT" cat-file -e "$BASE^{commit}" 2>/dev/null; then
   for p in $pkgs; do
