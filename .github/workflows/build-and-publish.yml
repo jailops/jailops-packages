@@ -112,12 +112,15 @@ jobs:
         run: |
           set -eu
           mkdir -p dist
+          # Nothing was built (a push that touches no package): there is nothing to assemble, and the baseline site holds the
+          # packages and the index but not the catalogs, which only `pkgops repo` writes. The publish job signs the site
+          # again and verifies it, so only a real assembly is verified here.
           if [ -n "$(find dist -name '*.pkg' -print -quit)" ]; then
             pkgops repo --repo site --policy pkgops-repo.yaml --prune prune.yaml dist
-          fi
-          if [ -f site/pkgops-index.json ]; then
             for abi in FreeBSD:15:amd64 FreeBSD:15:aarch64; do pkgops verify "site/$abi/latest"; done
             sh scripts/verify-site.sh site
+          else
+            echo "no package was built: nothing to assemble here"
           fi
 
       # upload-artifact refuses file names with a colon (FreeBSD:15:amd64), so the built packages travel as ONE tar file.

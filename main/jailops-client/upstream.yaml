@@ -7,7 +7,7 @@ tag_prefix: v                        # tag = tag_prefix + version (without a _N 
 # ${repo} ${tag} ${version} are replaced. The API tarball also works for a private repository (with the token).
 tarball: https://api.github.com/repos/${repo}/tarball/${tag}
 strip_components: 1
-sha256: PENDING                      # sha256 of the tarball of the manifest's version; PENDING until the tag exists, then scripts/bump-version.sh --pin
+sha256: e7dc7e3a9ad9276dd0bf6ec312c546b5c78f9e8b8870981258bb4aed541a28a4
 token_env: JAILOPS_SOURCE_TOKEN      # optional: a secret (also an env var) with read access to a private repo; skipped with a message when it is needed and absent
 prebuild:                            # steps of scripts/prebuild.sh, space separated; empty = none
 bump_note: jailops runs as root-adjacent daemons and consoles (jailopsd, jailops-priv, jailops-backupd): read the release notes for rc.d, config and API changes before merging.
