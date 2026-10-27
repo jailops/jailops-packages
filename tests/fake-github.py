@@ -1,7 +1,7 @@
 """A tiny fake GitHub API for tests/test-updates.sh (offline).
 
 usage: fake-github.py FIXTURE_DIR PORT_FILE
-GET /a/b?q  serves FIXTURE_DIR/a__b (404 when absent). Every other method is appended to FIXTURE_DIR/requests.log as
+GET /a/b?q  serves FIXTURE_DIR/a__b (with state=all in q: a__b__stateall; 404 when absent). Every other method is appended to FIXTURE_DIR/requests.log as
 "METHOD PATH BODY"; POST .../pulls answers {"number": N} with N counting from 100; everything else 201/204 with {}.
 """
 import http.server, os, sys
@@ -13,8 +13,9 @@ class H(http.server.BaseHTTPRequestHandler):
     def reply(self, code, body=b"{}"):
         self.send_response(code); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
     def do_GET(self):
-        path = self.path.split("?")[0]
+        path, _, query = self.path.partition("?")
         f = os.path.join(fix, path.strip("/").replace("/", "__"))
+        if "state=all" in query: f += "__stateall"  # the list of pull requests of any state has its own fixture
         if os.path.isfile(f): self.reply(200, open(f, "rb").read())
         else: self.reply(404, b'{"message":"Not Found"}')
     def other(self):

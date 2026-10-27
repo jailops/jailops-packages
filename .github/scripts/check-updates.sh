@@ -35,10 +35,10 @@ TAB=$(printf '\t')
 api() {
   _t=${4:-${GH_TOKEN:-}}
   if [ -n "${3:-}" ]; then
-    curl -fsS --max-time 60 -X "$1" -H "Authorization: Bearer $_t" -H "Accept: application/vnd.github+json" \
+    curl --fail-with-body -sS --max-time 60 -X "$1" -H "Authorization: Bearer $_t" -H "Accept: application/vnd.github+json" \
       -H "Content-Type: application/json" -d "$3" "$API$2"
   else
-    curl -fsS --max-time 60 -X "$1" -H "Authorization: Bearer $_t" -H "Accept: application/vnd.github+json" "$API$2"
+    curl --fail-with-body -sS --max-time 60 -X "$1" -H "Authorization: Bearer $_t" -H "Accept: application/vnd.github+json" "$API$2"
   fi
 }
 
@@ -105,7 +105,17 @@ pr_link() { echo "[#$1]($SERVER/$SELF/pull/$1)"; }
 existing_pr() {
   _ex=$(pr_for_branch "$OPEN_PRS" "$2")
   if [ -n "$_ex" ]; then STATUS="bump PR already open ($(pr_link "$_ex"))"; return 0; fi
-  if branch_exists "$2"; then STATUS="branch $2 exists, no open PR (closed by hand?): skipped"; return 0; fi
+  if branch_exists "$2"; then
+    # a branch that never had a pull request is what a run leaves behind when it stops before opening one (a 403 on
+    # the pull request call, for one): make it again. A branch whose PR was closed is somebody's decision: leave it.
+    _any=$(api GET "/repos/$SELF/pulls?state=all&head=${SELF%%/*}:$2&per_page=1" 2>/dev/null | jq 'length' 2>/dev/null || echo 1)
+    if [ "$_any" = 0 ]; then
+      echo "branch $2 exists without any pull request (an earlier run stopped before opening it): making it again"
+      api DELETE "/repos/$SELF/git/refs/heads/$2" >/dev/null || { STATUS="branch $2 exists and could not be removed: skipped"; return 0; }
+      return 1
+    fi
+    STATUS="branch $2 exists, its pull request was closed (by hand?): skipped"; return 0
+  fi
   return 1
 }
 

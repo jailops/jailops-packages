@@ -135,10 +135,18 @@ has "run 2: pkgops already open" "v0.2.0, bump PR already open" "$S"
 
 # a closed PR whose branch still exists is not reopened
 : > "$L"; : > "$S"; printf '[]' > "$FIX/repos__me__packages__pulls"
+printf '[{"number":5}]' > "$FIX/repos__me__packages__pulls__stateall"
 printf '{}' > "$FIX/repos__me__packages__git__ref__heads__bump-foo-1.4.0"
 runit > "$T/out3" 2>&1
-has "branch without PR is skipped" "branch bump-foo-1.4.0 exists, no open PR" "$S"
-rm "$FIX/repos__me__packages__git__ref__heads__bump-foo-1.4.0"
+has "branch with a closed PR is skipped" "branch bump-foo-1.4.0 exists, its pull request was closed" "$S"
+hasnt "the closed PR's branch is kept" "DELETE /repos/me/packages/git/refs/heads/bump-foo-1.4.0" "$L"
+
+# a branch that never had a PR (a run stopped before opening it) is made again
+: > "$L"; : > "$S"; printf '[]' > "$FIX/repos__me__packages__pulls__stateall"
+runit > "$T/out3b" 2>&1
+has "a branch without any PR is removed" "DELETE /repos/me/packages/git/refs/heads/bump-foo-1.4.0" "$L"
+has "and the PR is opened" "POST /repos/me/packages/pulls" "$L"
+rm "$FIX/repos__me__packages__git__ref__heads__bump-foo-1.4.0" "$FIX/repos__me__packages__pulls__stateall"
 
 # strict: fails at the very end, after the summary was written
 for f in foo stale tagonly dup; do printf '[]' > "$FIX/repos__owner__${f}__releases"; done
