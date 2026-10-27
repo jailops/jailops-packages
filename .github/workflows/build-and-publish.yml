@@ -65,6 +65,8 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: No binaries in git
+        run: sh scripts/no-binaries.sh
       - name: Check the repository (manifests, policy, GOTOOLCHAIN, no keys, immutability)
         env:
           CHECK_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}

@@ -11,21 +11,14 @@ Signed FreeBSD packages for JailOps and a few related tools, built with [PkgOps]
 
 ## Use it
 
-As root on a FreeBSD 15.1+ host:
+As root on a FreeBSD 15.1+ host, paste this one block. It fetches the signing key, goes on only if the key has the
+fingerprint printed here, and configures the repository:
 
 ```sh
-mkdir -p /usr/local/etc/pkg/keys /usr/local/etc/pkg/repos
-fetch -o /usr/local/etc/pkg/keys/jailops.pub https://pkg.jailops.net/jailops.pub
-sha256 -q /usr/local/etc/pkg/keys/jailops.pub
-# must print exactly: b9fb3c980044dbd7a37c6e53e6a17510b054ba3af65e538eb2eae0f14be26a70
-```
-
-The fingerprint is the sha256 of the public key file (also published at
-<https://pkg.jailops.net/jailops.fingerprint> and committed as `KEY_FINGERPRINT`). Compare it with this README on
-GitHub, not only with what the same web server told you; do not go on if it differs.
-
-```sh
-cat > /usr/local/etc/pkg/repos/jailops.conf <<'EOF'
+mkdir -p /usr/local/etc/pkg/keys /usr/local/etc/pkg/repos && \
+fetch -qo /usr/local/etc/pkg/keys/jailops.pub https://pkg.jailops.net/jailops.pub && \
+[ "$(sha256 -q /usr/local/etc/pkg/keys/jailops.pub)" = b9fb3c980044dbd7a37c6e53e6a17510b054ba3af65e538eb2eae0f14be26a70 ] && \
+cat > /usr/local/etc/pkg/repos/jailops.conf <<'EOF' && pkg update
 jailops: {
   url: "https://pkg.jailops.net/${ABI}/latest",
   signature_type: "pubkey",
@@ -33,9 +26,15 @@ jailops: {
   enabled: yes
 }
 EOF
-pkg update
-pkg install jailops
 ```
+
+If the fingerprint differs, nothing is configured and `pkg update` does not run: delete
+`/usr/local/etc/pkg/keys/jailops.pub` and do not go on. The fingerprint is the sha256 of the public key file; it is also
+published at <https://pkg.jailops.net/jailops.fingerprint> and committed as `KEY_FINGERPRINT`, but trust the one in this
+README on GitHub, not only what the same web server told you.
+
+That is all the setup. What to install is your choice: `pkg search -r jailops .` lists the packages (the table below
+says what each one is), then `pkg install -r jailops <name>`.
 
 (No `mirror_type`: the repository is plain HTTPS, not an SRV mirror set.) Package names and origins (`jailops/<name>`)
 do not collide with FreeBSD ports; pkg picks the highest version across all enabled repositories, so keep it that way.
