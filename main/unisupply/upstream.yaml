@@ -5,6 +5,6 @@ repo: unidoc/unisupply
 tag_prefix: v
 tarball: https://github.com/${repo}/archive/refs/tags/${tag}.tar.gz
 strip_components: 1
-sha256: e2ebf956fe4c86c731cc42c5e6b7990e6d32f9377378a21ef4d50e9af787d55d   # sha512 equals the APKBUILD's
+sha256: 7cc862b51224b3c39fd8e064984b423ec63e650fcc8bfcb71df4d9275394f36f
 token_env:
 prebuild:
