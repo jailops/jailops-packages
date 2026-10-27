@@ -1,7 +1,7 @@
 # unisupply: build recipe ported from unidoc-aports/main/unisupply/APKBUILD (in production there);
 # the FreeBSD packaging is NOT yet installed on a FreeBSD host.
 name: unisupply
-version: 0.7.0
+version: 0.8.0
 origin: jailops/unisupply
 comment: Go supply chain security analysis
 desc: |
