@@ -1,5 +1,5 @@
 name: jailops
-version: 0.1.0
+version: 0.2.0
 origin: jailops/jailops
 comment: JailOps, ZFS-native jail management - daemon and privileged helper
 desc: |
@@ -15,7 +15,7 @@ min_release: "15.1"
 
 deps:
   # same version as the jailops-client package in this repository (scripts/check-pkgops.sh enforces it)
-  - {name: jailops-client, origin: jailops/jailops-client, version: "0.1.0"}
+  - {name: jailops-client, origin: jailops/jailops-client, version: "0.2.0"}
 
 build:
   type: go
