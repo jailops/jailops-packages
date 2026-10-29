@@ -19,7 +19,7 @@ tarball: https://github.com/${repo}/archive/refs/tags/${tag}.tar.gz     # ${repo
 strip_components: 1
 sha256: PENDING                # then: sh scripts/bump-version.sh --pin mytool   (downloads and writes it)
 token_env:                     # name of a secret/env var with read access when the repo is private (then add it to build-and-publish.yml)
-prebuild:                      # steps of scripts/prebuild.sh (jailops-web:host, jailops-web:backup, isms-web); empty = none
+prebuild:                      # steps of scripts/prebuild.sh (jailops-web:host, jailops-web:backup, isms-web, jailops-share); empty = none
 ```
 
 Optional `bump_note: one line` in `upstream.yaml`: `check-updates.yml` puts it in every bump PR of the group under "Read before

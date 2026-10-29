@@ -1,5 +1,5 @@
 name: jailops-client
-version: 0.2.0
+version: 0.2.1
 origin: jailops/jailops-client
 comment: JailOps command line client and fleet tool
 desc: |
@@ -29,6 +29,21 @@ files:
     destination: bin/jailops
   - source: build/${ARCH}/jailops-sync
     destination: bin/jailops-sync
+  # written at build time by the tools themselves (scripts/prebuild.sh jailops-share), laid out like ports do
+  - source: src/share/bash-completion/completions/jailops
+    destination: share/bash-completion/completions/jailops
+  - source: src/share/bash-completion/completions/jailops-sync
+    destination: share/bash-completion/completions/jailops-sync
+  - source: src/share/zsh/site-functions/_jailops
+    destination: share/zsh/site-functions/_jailops
+  - source: src/share/zsh/site-functions/_jailops-sync
+    destination: share/zsh/site-functions/_jailops-sync
+  - source: src/share/fish/vendor_completions.d/jailops.fish
+    destination: share/fish/vendor_completions.d/jailops.fish
+  - source: src/share/fish/vendor_completions.d/jailops-sync.fish
+    destination: share/fish/vendor_completions.d/jailops-sync.fish
+  - source: src/share/man/man1
+    destination: share/man/man1
   - source: src/README.md
     destination: share/doc/jailops-client/README.md
   - source: src/LICENSE.md
