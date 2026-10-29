@@ -1,0 +1,12 @@
+# Where the sources of this package come from. Read by scripts/*.sh and .github/workflows/check-updates.yml.
+# One "key: value" per line (no nesting): the scripts parse it with sed.
+# bump_note (optional, anywhere below): one warning line that check-updates.yml puts in the bump PR ("read this before merging").
+group: jailops                       # packages of one group are bumped, built and skipped together
+repo: jailops/jailops                # GitHub owner/name
+tag_prefix: v                        # tag = tag_prefix + version (without a _N revision)
+# ${repo} ${tag} ${version} are replaced. The API tarball also works for a private repository (with the token).
+tarball: https://api.github.com/repos/${repo}/tarball/${tag}
+strip_components: 1
+sha256: 6e5f25c4a0bb69d0275d057467e995808baaffd4afd01ccfa1589d84b4a193db
+token_env:      # optional: a secret (also an env var) with read access to a private repo; skipped with a message when it is needed and absent
+prebuild:

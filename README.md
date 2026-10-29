@@ -44,6 +44,7 @@ do not collide with FreeBSD ports; pkg picks the highest version across all enab
 | package | what it is |
 |---|---|
 | `jailops-client` | `jailops` and `jailops-sync`, the command line client and fleet tool. Depends on `git-lite`. |
+| `jailops-apps` | The application catalog of JailOps: the definitions `jailops app install` turns into running jails (nginx, PostgreSQL, Valkey, Forgejo, Prometheus), installed under `/usr/local/share/jailops/apps`. Pulled in by `jailops`. |
 | `jailops` | `jailopsd` (daemon, REST API, embedded web console) and `jailops-priv` (privileged helper), their rc.d scripts and sample configuration, user and group `jailops`, `/var/db/jailops`. Depends on `jailops-client` of the same version. |
 | `jailops-backupd` | The JailOps backup node with its rc.d script and sample configuration, user `jailops-backup`. It needs PostgreSQL for its control plane, but the package does **not** depend on a postgresql package: the database may be on another host or in any flavour you run. |
 | `pkgops` | The PkgOps command line tool (no service). |
