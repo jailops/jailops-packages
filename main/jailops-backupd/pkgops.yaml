@@ -1,5 +1,5 @@
 name: jailops-backupd
-version: 0.2.0
+version: 0.2.1
 origin: jailops/jailops-backupd
 comment: JailOps backup node
 desc: |
@@ -27,6 +27,14 @@ files:
     destination: sbin/jailops-backupd
   - source: src/packaging/backupd.yaml
     destination: etc/jailops/backupd.yaml.sample
+  - source: src/share/bash-completion/completions/jailops-backupd
+    destination: share/bash-completion/completions/jailops-backupd
+  - source: src/share/zsh/site-functions/_jailops-backupd
+    destination: share/zsh/site-functions/_jailops-backupd
+  - source: src/share/fish/vendor_completions.d/jailops-backupd.fish
+    destination: share/fish/vendor_completions.d/jailops-backupd.fish
+  - source: src/packaging/man/jailops-backupd.8
+    destination: share/man/man8/jailops-backupd.8
   - source: src/LICENSE.md
     destination: share/doc/jailops-backupd/LICENSE.md
 
