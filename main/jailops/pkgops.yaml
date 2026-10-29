@@ -1,5 +1,5 @@
 name: jailops
-version: 0.1.0
+version: 0.2.1
 origin: jailops/jailops
 comment: JailOps, ZFS-native jail management - daemon and privileged helper
 desc: |
@@ -15,7 +15,7 @@ min_release: "15.1"
 
 deps:
   # same version as the jailops-client package in this repository (scripts/check-pkgops.sh enforces it)
-  - {name: jailops-client, origin: jailops/jailops-client, version: "0.1.0"}
+  - {name: jailops-client, origin: jailops/jailops-client, version: "0.2.1"}
 
 build:
   type: go
@@ -35,6 +35,10 @@ files:
     destination: etc/jailops/jailopsd.yaml.sample
   - source: src/packaging/priv.conf.sample
     destination: etc/jailops/priv.conf.sample
+  - source: src/packaging/man/jailopsd.8
+    destination: share/man/man8/jailopsd.8
+  - source: src/packaging/man/jailops-priv.8
+    destination: share/man/man8/jailops-priv.8
   - source: src/README.md
     destination: share/doc/jailops/README.md
   - source: src/LICENSE.md
@@ -54,9 +58,9 @@ users:
 
 scripts:
   post-install: |
-    echo "JailOps is installed. Next, as root:"
-    echo "  cp /usr/local/etc/jailops/jailopsd.yaml.sample /usr/local/etc/jailops/jailopsd.yaml   (set pool:)"
-    echo "  cp /usr/local/etc/jailops/priv.conf.sample /usr/local/etc/jailops/priv.conf           (set storage-root)"
+    echo "JailOps is installed. Next, as root (init writes the configuration files itself):"
     echo "  jailops-priv init -pool POOL"
-    echo "  sysrc jailops_priv_enable=YES jailopsd_enable=YES"
+    echo "  sysrc jailops_priv_enable=YES jailopsd_enable=YES jailopsd_web=YES"
     echo "  service jailops_priv start && service jailopsd start"
+    echo "  jailops doctor"
+    echo "The web console is then on https://HOST:39110/ . See man jailopsd and /usr/local/share/doc/jailops/."

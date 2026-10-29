@@ -4,8 +4,8 @@ repo: jailops/jailops
 tag_prefix: v
 tarball: https://api.github.com/repos/${repo}/tarball/${tag}
 strip_components: 1
-sha256: e7dc7e3a9ad9276dd0bf6ec312c546b5c78f9e8b8870981258bb4aed541a28a4
+sha256: cf9d0ebd57774ebf67a163903e94d195575e6d4b892e6a82ab9bcb34a861b326
 token_env:
 # the backup node console is embedded in jailops-backupd (web/apps.json: backup -> internal/backupui)
-prebuild: jailops-web:backup
+prebuild: jailops-web:backup jailops-share
 bump_note: jailops runs as root-adjacent daemons and consoles (jailopsd, jailops-priv, jailops-backupd): read the release notes for rc.d, config and API changes before merging.
