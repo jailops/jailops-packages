@@ -7,6 +7,6 @@ tag_prefix: v                        # tag = tag_prefix + version (without a _N 
 # ${repo} ${tag} ${version} are replaced. The API tarball also works for a private repository (with the token).
 tarball: https://api.github.com/repos/${repo}/tarball/${tag}
 strip_components: 1
-sha256: 6e5f25c4a0bb69d0275d057467e995808baaffd4afd01ccfa1589d84b4a193db
+sha256: 3ca40117c99fb09f65a468f1efd2126019c6322670145e0133f3f6ea32ecf361
 token_env:      # optional: a secret (also an env var) with read access to a private repo; skipped with a message when it is needed and absent
 prebuild:
