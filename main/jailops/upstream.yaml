@@ -4,7 +4,7 @@ repo: jailops/jailops
 tag_prefix: v
 tarball: https://api.github.com/repos/${repo}/tarball/${tag}
 strip_components: 1
-sha256: 6e5f25c4a0bb69d0275d057467e995808baaffd4afd01ccfa1589d84b4a193db
+sha256: 3ca40117c99fb09f65a468f1efd2126019c6322670145e0133f3f6ea32ecf361
 token_env:
 # the host console is embedded in jailopsd (web/apps.json: host -> internal/webui); the TypeScript types must be in sync
 prebuild: jailops-web:host
