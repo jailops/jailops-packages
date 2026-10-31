@@ -1,7 +1,8 @@
 #!/bin/sh
 # build-pkg.sh PKG...
 #
-# For each package: fetch the source, run the prebuild steps, then `pkgops build -f main/PKG/pkgops.yaml --abi all -o dist`.
+# For each package: fetch the source (nothing for source: local), run the prebuild steps, then
+# `pkgops build -f main/PKG/pkgops.yaml --abi all -o dist`.
 # Output: dist/<ABI>/<name>-<version>.pkg and a list of what was built in dist/built.txt.
 #
 # A package whose source is not ready (sha256 still PENDING, token missing) is SKIPPED with a warning, together with

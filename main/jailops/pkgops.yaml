@@ -16,7 +16,9 @@ min_release: "15.1"
 deps:
   # same version as the jailops-client package in this repository (scripts/check-pkgops.sh enforces it)
   - {name: jailops-client, origin: jailops/jailops-client, version: "0.3.0"}
-  # the application catalog (scripts/check-pkgops.sh enforces the same version): jailops app list works right after the install
+  # the application catalog, so jailops app list works right after the install. It has a version of its own: pkg
+  # resolves a dependency by name, so ANY jailops-apps version satisfies this line, and its version only records the
+  # first one; it is not kept in step (scripts/check-pkgops.sh checks equal versions within a group only)
   - {name: jailops-apps, origin: jailops/jailops-apps, version: "0.3.0"}
 
 build:

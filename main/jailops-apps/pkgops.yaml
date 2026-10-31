@@ -1,14 +1,17 @@
 name: jailops-apps
-version: 0.3.0
+version: 0.4.0
 origin: jailops/jailops-apps
 comment: JailOps application catalog
 desc: |
   The application catalog of JailOps: one definition file per app (nginx,
-  PostgreSQL, Valkey, Forgejo, Prometheus) that "jailops app install NAME" turns
-  into a running, isolated jail. The files are installed under
-  /usr/local/share/jailops/apps, where jailopsd reads them; nothing is fetched
-  at run time, so the signature of this package is what makes the catalog
-  trusted. List it with: jailops app list
+  PostgreSQL, Valkey, Forgejo, Prometheus, isms, NSD and a mail server) that
+  "jailops app install NAME" turns into a running, isolated jail. The files
+  are installed under /usr/local/share/jailops/apps, where jailopsd reads
+  them; nothing is fetched at run time, so the signature of this package is
+  what makes the catalog trusted. List it with: jailops app list
+  The catalog has a version of its own, independent of the JailOps version. A
+  definition that needs a newer jailopsd is listed as invalid, with the
+  reason, until jailops is upgraded.
 www: https://jailops.net
 maintainer: packages@jailops.net
 license: BSD2CLAUSE
@@ -16,8 +19,9 @@ categories: [sysutils]
 abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]
 min_release: "15.1"
 
+# the sources are this directory (upstream.yaml: source: local)
 files:
-  - source: src/packaging/apps
+  - source: apps
     destination: share/jailops/apps
-  - source: src/LICENSE.md
+  - source: LICENSE.md
     destination: share/doc/jailops-apps/LICENSE.md

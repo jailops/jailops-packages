@@ -61,6 +61,9 @@ mkpkg pend 0.1.0 PENDING
 mkpkg dup 1.0.0 $OLD
 mkpkg stale 1.0.0 $OLD
 mkpkg tagonly 0.2.0 $OLD
+# a package built from its own directory: no upstream, never checked or bumped
+mkdir -p "$ROOT/main/catalog"; printf 'name: catalog\nversion: 0.4.0\n' > "$ROOT/main/catalog/pkgops.yaml"
+printf 'source: local\nprebuild:\n' > "$ROOT/main/catalog/upstream.yaml"
 echo v0.1.0 > "$ROOT/PKGOPS_VERSION"
 rel foo '[{"tag_name":"v1.3.0","draft":false,"prerelease":false},{"tag_name":"v1.5.0-rc1","draft":false,"prerelease":true},{"tag_name":"v2.0.0","draft":true,"prerelease":false},{"tag_name":"v1.4.0","draft":false,"prerelease":false}]'
 rel baz '[{"tag_name":"v0.9.0","draft":false,"prerelease":false}]'
@@ -98,6 +101,9 @@ has "summary: PENDING" "| \`pend\` | 0.1.0 | - | pinned PENDING sha256" "$S"
 has "summary: dup already open" "| \`dup\` | 1.0.0 | 1.1.0 | bump PR already open ([#7]" "$S"
 has "summary: stale superseded" "superseded #8" "$S"
 has "summary: tag fallback" "| \`tagonly\` | 0.2.0 | 0.3.0 | bump PR opened" "$S"
+has "summary: local source listed, not checked" "| \`catalog\` | 0.4.0 | - | local source: version raised by hand, not checked |" "$S"
+hasnt "local source: no upstream request" "catalog" "$L"
+hasnt "local source: no request without a repository" "/repos//" "$L"
 has "summary: pkgops line" "\`PKGOPS_VERSION\`: \`v0.1.0\`, latest release of jailops/jailops-pkgops: v0.2.0, bump PR opened" "$S"
 has "summary: publish age" "Last publish: 3 days ago" "$S"
 has "summary: unreachable count" "1 upstream(s) unreachable." "$S"

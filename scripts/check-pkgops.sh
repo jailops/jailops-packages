@@ -7,10 +7,13 @@
 #   - min_release is exactly "15.1" (a higher one would break `pkg update` for the WHOLE repository on 15.1 hosts),
 #     both ABIs are listed in abis:, no single abi:
 #   - origin jailops/<name>, comment, www, maintainer packages@jailops.net, license set
-#   - every dependency has name, origin and a version; a dependency on a package of this repository has that
-#     package's upstream version (jailops -> jailops-client, and it must exist)
+#   - every dependency has name, origin and a version; a dependency on a package of the same group has that
+#     package's upstream version (jailops -> jailops-client, and it must exist). A dependency on a package of another
+#     group (jailops -> jailops-apps) is not kept in step: pkg resolves dependencies by name, so any version of it
+#     satisfies the dependency, and the version only records what it was written against
 #   - upstream.yaml: group repo tag_prefix tarball strip_components sha256 token_env prebuild; sha256 is 64 hex or PENDING
-#     (--strict: PENDING fails); prebuild steps exist; token_env is passed by the build workflow
+#     (--strict: PENDING fails); prebuild steps exist; token_env is passed by the build workflow. Or `source: local`
+#     (the package is built from its own directory): then only prebuild, no upstream keys, and no file from src/
 #   - the packages of one group share one upstream version
 #   - files named in pkgops.yaml outside src/ and build/ exist
 # Repository-wide:
@@ -21,7 +24,8 @@
 #     in no other workflow), and the monthly collisions job holds no write permission
 #   - the signing secret appears only in build-and-publish.yml, once, with `environment: signing`, never in a pull_request job
 #   - immutability, with BASE_REF (or $CHECK_BASE): a package whose main/<pkg>/ changed since BASE_REF must have a new
-#     version (scripts/bump-version.sh --revision for a packaging change). Exception: pinning a PENDING sha256.
+#     version (scripts/bump-version.sh --revision for a packaging change). Exceptions: pinning a PENDING sha256, and a
+#     change of comment lines of pkgops.yaml only (outside block scalars; comments never reach the package).
 set -eu
 . "$(dirname "$0")/lib.sh"
 
@@ -65,8 +69,12 @@ for p in $pkgs; do
     dv=$(echo "$line" | sed -n 's/.*version:[[:space:]]*"\{0,1\}\([^",}]*\)"\{0,1\}.*/\1/p')
     if [ -z "$n" ] || [ -z "$o" ] || [ -z "$dv" ]; then fail "$p: dependency needs name, origin and version on one line: $line"; continue; fi
     if [ -f "$MAIN/$n/pkgops.yaml" ]; then
-      want=$(base_version "$(mf_get "$n" version)")
-      [ "$dv" = "$want" ] || fail "$p: dependency $n is version $dv but $n in this repository is $want (scripts/bump-version.sh keeps them equal)"
+      if [ -f "$u" ] && [ -f "$MAIN/$n/upstream.yaml" ] && [ "$(group_of "$n")" = "$(group_of "$p")" ]; then
+        want=$(base_version "$(mf_get "$n" version)")
+        [ "$dv" = "$want" ] || fail "$p: dependency $n is version $dv but $n in this repository is $want (scripts/bump-version.sh keeps them equal)"
+      else
+        echo "$dv" | grep -Eq '^[0-9]+(\.[0-9]+)*(_[0-9]+)?$' || fail "$p: dependency $n has version '$dv', not a version"
+      fi
       [ "$o" = "jailops/$n" ] || fail "$p: dependency $n has origin $o, expected jailops/$n"
     fi
   done < "$tmpf"
@@ -74,17 +82,29 @@ for p in $pkgs; do
     grep -Eq '\{name: jailops-client,' "$m" || fail "jailops: must depend on jailops-client (same version)"
   fi
 
-  for k in group repo tag_prefix tarball strip_components sha256 token_env prebuild; do
-    grep -Eq "^$k:" "$u" || fail "$p: upstream.yaml has no '$k:' key"
-  done
-  echo "$(up_get "$p" repo)" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || fail "$p: upstream repo must be owner/name"
-  up_get "$p" tarball | grep -Eq '\$\{(tag|version)\}' || fail "$p: upstream tarball must contain \${tag} or \${version}"
-  s=$(up_get "$p" sha256)
-  if [ "$s" = PENDING ]; then
-    [ -z "$STRICT" ] || fail "$p: sha256 is PENDING (pin it: scripts/bump-version.sh --pin $p)"
-    echo "note $p: sha256 PENDING, the package is skipped by the build until it is pinned" >&2
+  src=$(up_get "$p" source)
+  if [ "$src" = local ]; then
+    # built from this directory: nothing to download, pin or check for updates
+    for k in group repo tag_prefix tarball strip_components sha256 token_env bump_note; do
+      grep -Eq "^$k:" "$u" && fail "$p: upstream.yaml says source: local, so '$k:' has no meaning there; remove it"
+    done
+    grep -Eq "^prebuild:" "$u" || fail "$p: upstream.yaml has no 'prebuild:' key"
+    sed -n 's/^[[:space:]-]*source:[[:space:]]*\([^[:space:]#]*\).*/\1/p' "$m" | grep -q '^src/' &&
+      fail "$p: source: local, but pkgops.yaml takes files from src/, which only a download fills"
   else
-    is_sha256 "$s" || fail "$p: sha256 '$s' is neither 64 hex digits nor PENDING"
+    [ -z "$src" ] || fail "$p: upstream.yaml source: '$src' is unknown (local, or no source: key for a tarball)"
+    for k in group repo tag_prefix tarball strip_components sha256 token_env prebuild; do
+      grep -Eq "^$k:" "$u" || fail "$p: upstream.yaml has no '$k:' key"
+    done
+    echo "$(up_get "$p" repo)" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || fail "$p: upstream repo must be owner/name"
+    up_get "$p" tarball | grep -Eq '\$\{(tag|version)\}' || fail "$p: upstream tarball must contain \${tag} or \${version}"
+    s=$(up_get "$p" sha256)
+    if [ "$s" = PENDING ]; then
+      [ -z "$STRICT" ] || fail "$p: sha256 is PENDING (pin it: scripts/bump-version.sh --pin $p)"
+      echo "note $p: sha256 PENDING, the package is skipped by the build until it is pinned" >&2
+    else
+      is_sha256 "$s" || fail "$p: sha256 '$s' is neither 64 hex digits nor PENDING"
+    fi
   fi
   known=$(sh "$REPO_ROOT/scripts/prebuild.sh" --list)
   for step in $(up_get "$p" prebuild); do
@@ -195,6 +215,17 @@ is_published() {
   printf '%s' "$pubidx" | jq -e --arg n "$1" --arg v "$2" 'any(.packages[]; .name == $n and .version == $v)' >/dev/null 2>&1
 }
 
+# no_comments < pkgops.yaml: the manifest without its comment lines. Lines inside a block scalar (after a key ending in
+# | or >, while they are blank or indented deeper than that key) are kept: there a # is text, for example in a script.
+no_comments() {
+  awk '
+    blk { match($0, /^ */); if ($0 ~ /^[[:space:]]*$/ || RLENGTH > ind) { print; next } blk = 0 }
+    /^[[:space:]]*#/ { next }
+    { print }
+    /[|>][-+0-9]*[[:space:]]*(#.*)?$/ { match($0, /^ */); ind = RLENGTH; blk = 1 }
+  '
+}
+
 # immutability against a base commit
 if [ -n "$BASE" ] && git -C "$REPO_ROOT" cat-file -e "$BASE^{commit}" 2>/dev/null; then
   for p in $pkgs; do
@@ -206,10 +237,17 @@ if [ -n "$BASE" ] && git -C "$REPO_ROOT" cat-file -e "$BASE^{commit}" 2>/dev/nul
     [ "$old" != "$new" ] || {
       if [ "$changed" = "main/$p/upstream.yaml " ] &&
          [ "$(git -C "$REPO_ROOT" show "$BASE:main/$p/upstream.yaml" | yget sha256)" = PENDING ]; then continue; fi
+      if [ "$changed" = "main/$p/pkgops.yaml " ] &&
+         [ "$(git -C "$REPO_ROOT" show "$BASE:main/$p/pkgops.yaml" | no_comments)" = "$(no_comments < "$MAIN/$p/pkgops.yaml")" ]; then
+        echo "note $p: only comments of pkgops.yaml changed; the package is the same, the version stays" >&2
+        continue
+      fi
       # Only a PUBLISHED version is immutable: a version the live index does not list can still be corrected. When the
       # index cannot be read (offline, no jq, no SITE_URL) the check stays strict.
       is_published "$p" "$new" || continue
-      fail "$p: main/$p changed ($changed) but the version is still $old: a published version is immutable. Bump it: scripts/bump-version.sh --revision $p"
+      how="scripts/bump-version.sh --revision $p"
+      is_local "$p" && how="raise version: in main/$p/pkgops.yaml (the minor for a new app, the patch for a fix)"
+      fail "$p: main/$p changed ($changed) but the version is still $old: a published version is immutable. Bump it: $how"
     }
   done
 else
