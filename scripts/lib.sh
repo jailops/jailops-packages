@@ -35,6 +35,10 @@ src_override() { eval "echo \"\${$(src_var "$1"):-}\""; }
 
 is_sha256() { echo "$1" | grep -Eq '^[0-9a-f]{64}$'; }
 
+# is_local PKG: the package's source is its own directory (upstream.yaml says source: local): no tarball, no sha256,
+# no upstream release; its version is the one in pkgops.yaml, raised by hand
+is_local() { [ "$(up_get "$1" source)" = local ]; }
+
 sha256_of() {
   if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1
   elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d' ' -f1
@@ -52,6 +56,7 @@ tarball_url() {
 # pkg_ready PKG: 0 when the package can be built now. Otherwise 1 with the reason in $REASON.
 pkg_ready() {
   REASON=
+  is_local "$1" && return 0
   [ -n "$(src_override "$1")" ] && return 0
   _s=$(up_get "$1" sha256)
   if ! is_sha256 "$_s"; then

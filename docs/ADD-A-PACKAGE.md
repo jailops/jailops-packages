@@ -29,6 +29,23 @@ The daily check needs a GitHub release (or tag) `vN.N.N` upstream; names must no
 
 A new prebuild step is a few lines in `case` of `scripts/prebuild.sh` (and in its `--list`).
 
+**A package whose files are in this repository** (data, no upstream release; `main/jailops-apps` is the example) has
+instead:
+
+```yaml
+source: local                  # built from main/mytool itself: no download, no tarball, no sha256, no update check
+prebuild:
+```
+
+and no other key (`check-pkgops.sh` refuses `group`, `repo`, `tarball`, `sha256`, `token_env` there). Its files are named
+relative to `main/mytool` (`source: apps`, `source: LICENSE.md`), never `src/`. Its version is the one in `pkgops.yaml`,
+raised by hand in the pull request that changes the files (or `sh scripts/bump-version.sh 1.3.0 mytool`, which writes only
+the version); `check-updates.yml` lists it and leaves it alone. A package that depends on it from another group may name
+any version: pkg resolves dependencies by name, and the line is not kept in step.
+
+An app for the JailOps catalog is not a package of its own: it is `NAME.yaml` (and its icon) in `main/jailops-apps/apps/`
+and a new `jailops-apps` version; see "The application catalog" in the README.
+
 ## 3. `main/mytool/pkgops.yaml` (what goes into the package)
 
 Required by `scripts/check-pkgops.sh` (and by pkg):

@@ -44,7 +44,7 @@ do not collide with FreeBSD ports; pkg picks the highest version across all enab
 | package | what it is |
 |---|---|
 | `jailops-client` | `jailops` and `jailops-sync`, the command line client and fleet tool. Depends on `git-lite`. |
-| `jailops-apps` | The application catalog of JailOps: the definitions `jailops app install` turns into running jails (nginx, PostgreSQL, Valkey, Forgejo, Prometheus), installed under `/usr/local/share/jailops/apps`. Pulled in by `jailops`. |
+| `jailops-apps` | The application catalog of JailOps: the definitions `jailops app install` turns into running jails (nginx, PostgreSQL, Valkey, Forgejo, Prometheus, isms, NSD, mail), installed under `/usr/local/share/jailops/apps`. Pulled in by `jailops` (any version of it). It has a version of its own: the definitions live in this repository and a new app is released without a JailOps release. |
 | `jailops` | `jailopsd` (daemon, REST API, embedded web console) and `jailops-priv` (privileged helper), their rc.d scripts and sample configuration, user and group `jailops`, `/var/db/jailops`. Depends on `jailops-client` of the same version. |
 | `jailops-backupd` | The JailOps backup node with its rc.d script and sample configuration, user `jailops-backup`. It needs PostgreSQL for its control plane, but the package does **not** depend on a postgresql package: the database may be on another host or in any flavour you run. |
 | `pkgops` | The PkgOps command line tool (no service). |
@@ -56,6 +56,12 @@ do not collide with FreeBSD ports; pkg picks the highest version across all enab
 Services are installed disabled. Enable with `sysrc NAME_enable=YES`, then `service NAME start`; each package prints its
 next steps when it is installed. The `git-lite` dependency comes from the official repository (the full `git` would pull in perl and python,
 about 1 GB; `jailops-sync` only needs the core git commands, which git-lite has, tested on FreeBSD 15.1).
+
+## Contribute an app
+
+The application catalog (`main/jailops-apps/apps/`) takes pull requests: write a definition, try it on your own host,
+send it. [CONTRIBUTING.md](CONTRIBUTING.md) has the steps (`sh scripts/new-app.sh NAME` starts one), the review
+checklist and the quality bar.
 
 ## Problems
 
@@ -70,12 +76,13 @@ exact command and output. Bugs in a program itself belong to the program's own r
 
 ```
 main/<pkg>/pkgops.yaml     what goes into the package (PkgOps manifest)
-main/<pkg>/upstream.yaml   where the source comes from: repo, tag prefix, tarball URL, sha256, prebuild step, token
+main/<pkg>/upstream.yaml   where the source comes from: repo, tag prefix, tarball URL, sha256, prebuild step, token;
+                           or `source: local`: the package is built from its own directory (jailops-apps)
 pkgops-repo.yaml           policy: ABIs and minimum release 15.1 (refused otherwise)
 prune.yaml                 the ONLY way a version leaves the site
-scripts/                   check, fetch-source, prebuild, build-pkg, baseline, changed, verify-site, site-files, bump-version, keygen
+scripts/                   check, fetch-source, prebuild, build-pkg, baseline, changed, validate-apps, verify-site, site-files, bump-version, keygen
 .github/workflows/         build-and-publish.yml, check-updates.yml (scripts: .github/scripts/)
-tests/                     offline tests of the update check: sh tests/run.sh
+tests/                     offline tests (update check, baseline cache, changed packages, source: local): sh tests/run.sh
 KEY_FINGERPRINT            sha256 of the public signing key (not secret; the publish job refuses another key)
 PKGOPS_VERSION             the pinned pkgops release (v0.1.0)
 ```
@@ -84,7 +91,8 @@ A push to `master` runs `build-and-publish.yml`:
 
 1. **build** job: `scripts/check-pkgops.sh`, install the pinned pkgops, `scripts/baseline.sh` (`pkgops fetch` from the live
    site, or from the GitHub Releases archive when the site has no index), `scripts/changed.sh` (the packages whose
-   current version is missing from the baseline index, and nothing else: touching files, scripts or the pin builds nothing), `scripts/build-pkg.sh`
+   current version is missing from the baseline index, and nothing else: touching files, scripts or the pin builds nothing),
+   `scripts/validate-apps.sh` when `jailops-apps` or `jailops` is to be built (see "The application catalog" below), `scripts/build-pkg.sh`
    (fetch source with sha256 check, prebuild, `pkgops build --abi all`), then an unsigned `pkgops repo` + `pkgops verify`
    in the runner. Pull requests and other branches stop here: **no signing, no publishing**.
 2. **publish** job (master only, GitHub Environment `signing`): fetches the baseline again, writes the key to
@@ -157,8 +165,27 @@ See [docs/ADD-A-PACKAGE.md](docs/ADD-A-PACKAGE.md): copy the nearest `main/<pkg>
   - Optional secret `UPDATE_TOKEN` (used as `GH_TOKEN` in the `check` job only, never printed) instead of the workflow token.
   - Tests, offline (fake GitHub API on localhost, Go YAML parse of the workflows): `sh tests/run.sh`; run it after touching
     `.github/scripts/` or the workflow. Needs jq, python3, go with `gopkg.in/yaml.v3` in the module cache.
+- **The application catalog, `jailops-apps`**, has no upstream: `main/jailops-apps/upstream.yaml` says `source: local`,
+  and the package is built from `main/jailops-apps/apps/` (one `NAME.yaml` per app, its icon next to it) and
+  `main/jailops-apps/LICENSE.md`, without a download, a tarball or a sha256. Its version is its own (it left the `jailops`
+  group at 0.4.0): **a new or changed app is one pull request** that edits `apps/` and raises `version:` in
+  `main/jailops-apps/pkgops.yaml` by hand (the minor for a new app, the patch for a fix; or
+  `sh scripts/bump-version.sh 0.5.0 jailops-apps`, which writes only the version). No JailOps release or tag is needed.
+  The published version is immutable like any other (`check-pkgops.sh BASE` refuses a change of `main/jailops-apps/`
+  without a new version). `check-updates.yml` skips it (the summary lists it as "local source"). `jailops` depends on
+  `jailops-apps` by name: pkg resolves dependencies by name, so any version satisfies it, and the version in that line only
+  records the first one; it is not kept in step (only dependencies within a group are). Before the package is built,
+  `scripts/validate-apps.sh` builds the `jailops` client from the jailops source this repository packages (the version of
+  `main/jailops/pkgops.yaml`, sha256-verified like its own build, with `JAILOPS_SOURCE_TOKEN` if `token_env` names it) and
+  runs `jailops app validate main/jailops-apps/apps`: the daemon's own validator, offline. An invalid definition fails the
+  build with `FILE: reason`. The command exists from the JailOps release after 0.3.1; until `main/jailops` packages such a
+  release, the step prints a loud **NOT VALIDATED** warning (log, annotation and run summary) and goes on: that is the only
+  tolerated case, and the check enforces itself after the bump. By hand: `sh scripts/validate-apps.sh` (or
+  `JAILOPS=/path/to/jailops sh scripts/validate-apps.sh`). A definition that needs a newer daemon than hosts run is listed
+  as invalid there, so it waits for that JailOps release (JailOps `docs/apps.md`).
 - **A packaging-only change** (rc.d, config, files, script): `sh scripts/bump-version.sh --revision PKG` makes `0.1.0_1`.
-  A published version is immutable: `check-pkgops.sh BASE` fails when `main/<pkg>/` changed and the version did not.
+  A published version is immutable: `check-pkgops.sh BASE` fails when `main/<pkg>/` changed and the version did not
+  (a change of comment lines of `pkgops.yaml` alone is allowed: comments never reach the package).
 - **The first release of a source**: set `sha256: PENDING` until the tag exists, then `sh scripts/bump-version.sh --pin PKG...`.
   A package whose sha256 is PENDING (or whose token secret is missing) is skipped, with its group, with a warning.
   `BUILD_STRICT=1` turns the skip into a failure.
@@ -213,13 +240,15 @@ sh scripts/check-pkgops.sh                                   # manifests, policy
 SOURCE_DATE_EPOCH=1700000000 sh scripts/build-pkg.sh unisupply            # dist/<ABI>/<name>-<version>.pkg
 # from a local checkout instead (development only, refused in Actions, announced loudly, not verified):
 SRC_JAILOPS=~/src/jailops SRC_JAILOPS_CLIENT=~/src/jailops SRC_JAILOPS_BACKUPD=~/src/jailops sh scripts/build-pkg.sh jailops-client jailops jailops-backupd
+# the app catalog: check it (builds the packaged jailops client; JAILOPS=/path/to/jailops to use one), then build it
+sh scripts/validate-apps.sh && SOURCE_DATE_EPOCH=1700000000 sh scripts/build-pkg.sh jailops-apps
 # a repository with a THROWAWAY key (never the real one):
 pkgops key generate --out /tmp/t/t.key && pkgops repo --repo /tmp/site --policy pkgops-repo.yaml --prune prune.yaml --key /tmp/t/t.key dist
 pkgops verify /tmp/site/FreeBSD:15:amd64/latest --pubkey /tmp/t/t.pub
 ```
 
 Environment: `SRC_<PKG>` (package name upper-cased, `-` to `_`), `JAILOPS_SOURCE_TOKEN`, `DIST_DIR`, `SOURCE_DATE_EPOCH`,
-`NPM_CI_ARGS`, `BUILD_STRICT`, `BASELINE_FIRST_RUN`, `NO_DOWNLOAD` (bump). Tools: a POSIX sh, curl, tar, jq (or python3), Go, Node 24 for the web builds.
+`NPM_CI_ARGS`, `BUILD_STRICT`, `BASELINE_FIRST_RUN`, `NO_DOWNLOAD` (bump), `JAILOPS` (validate-apps). Tools: a POSIX sh, curl, tar, jq (or python3), Go, Node 24 for the web builds.
 `*.key`, `*.pem`, `site/`, `dist/`, `main/*/src/`, `main/*/build/` are in `.gitignore`; `check-pkgops.sh` fails if key material is in the tree.
 
 ## Verification
@@ -234,6 +263,9 @@ Done locally (FreeBSD 15.1-RELEASE arm64 with pkg 2.8.4 as the target, a throwaw
   (41 packages with git and its dependencies from the official repository), users and groups created, directories, rc.d scripts, `pkg check -s`;
   a 15.0 userland (`OSVERSION=1500000`) is refused by `pkg update`;
 - the baseline cache against a local static site (`tests/test-baseline.sh`: cold, warm, added, pruned, corrupted, foreign files, first run, failure);
+- `jailops-apps` 0.4.0 built from `main/jailops-apps` (`source: local`) with `scripts/build-pkg.sh` and pkgops, both ABIs,
+  12 files; `scripts/validate-apps.sh` with a client that has `app validate` (valid; an invalid definition fails) and with
+  one that has not (NOT VALIDATED warning, exit 0); `tests/test-local.sh`;
 - the scripts against a local fake git repository and a local HTTP site (changed packages, baseline, bump, pin, sha256 mismatch,
   first run, key fingerprint guard, negative checks of `check-pkgops.sh`).
 

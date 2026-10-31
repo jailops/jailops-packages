@@ -1,6 +1,7 @@
 name: Check for updates
 
-# Daily: looks for a newer upstream release of every source group (main/*/upstream.yaml) and of pkgops itself
+# Daily: looks for a newer upstream release of every source group (main/*/upstream.yaml; a package with source: local,
+# such as jailops-apps, has none and is only listed) and of pkgops itself
 # (PKGOPS_VERSION), opens one pull request per bump, and writes a summary table to the run page. It never merges
 # anything. The build workflow runs on each bump branch (dispatched here, because a PR opened with the workflow token
 # may not start pull_request workflows: GitHub rule, UNVERIFIED here); that run builds and verifies, it never signs or

@@ -1,12 +1,7 @@
-# Where the sources of this package come from. Read by scripts/*.sh and .github/workflows/check-updates.yml.
-# One "key: value" per line (no nesting): the scripts parse it with sed.
-# bump_note (optional, anywhere below): one warning line that check-updates.yml puts in the bump PR ("read this before merging").
-group: jailops                       # packages of one group are bumped, built and skipped together
-repo: jailops/jailops                # GitHub owner/name
-tag_prefix: v                        # tag = tag_prefix + version (without a _N revision)
-# ${repo} ${tag} ${version} are replaced. The API tarball also works for a private repository (with the token).
-tarball: https://api.github.com/repos/${repo}/tarball/${tag}
-strip_components: 1
-sha256: 3ca40117c99fb09f65a468f1efd2126019c6322670145e0133f3f6ea32ecf361
-token_env:      # optional: a secret (also an env var) with read access to a private repo; skipped with a message when it is needed and absent
+# This package has no upstream: it is built from the files of this directory (apps/, LICENSE.md), without a download,
+# so there is no tarball, no sha256 and nothing for check-updates.yml to check. Read by scripts/*.sh.
+# Its version is `version:` in pkgops.yaml, raised by hand in the pull request that changes apps/ (or
+# sh scripts/bump-version.sh 0.5.0 jailops-apps); a published version is never rebuilt. scripts/validate-apps.sh checks
+# the definitions with `jailops app validate` before the package is built.
+source: local
 prebuild:

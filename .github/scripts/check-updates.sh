@@ -1,7 +1,7 @@
 #!/bin/sh
 # check-updates.sh [all|collisions]     run by .github/workflows/check-updates.yml (and by tests/, against a fake API)
 #
-# all         for every source group (main/*/upstream.yaml): the highest non-draft, non-prerelease release (tags when the
+# all         for every source group (main/*/upstream.yaml; not the packages with source: local): the highest non-draft, non-prerelease release (tags when the
 #             repository has no release) with a plain N.N.N version; when it is higher than the repository's, a PR
 #             that runs scripts/bump-version.sh (version, tarball sha256, _N reset). Then the PKGOPS_VERSION pin against
 #             jailops/jailops-pkgops. Then a Markdown summary (to $GITHUB_STEP_SUMMARY, else stdout). Never merges anything.
@@ -189,6 +189,10 @@ check_groups() {
   while read -r g repo prefix members; do
     process_group "$g" "$repo" "$prefix" "$members"
   done < "$WORK/groups"
+  # source: local packages (bump-version.sh --groups leaves them out) have no upstream; listed for completeness
+  for _p in $(all_pkgs); do
+    if is_local "$_p"; then row "$_p" "$(mf_get "$_p" version)" "-" "local source: version raised by hand, not checked"; fi
+  done
 }
 
 PIN_LINE=

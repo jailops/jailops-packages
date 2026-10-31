@@ -5,6 +5,7 @@
 # the upstream tarball named by main/PKG/upstream.yaml, verified against its sha256, OR a local copy when
 # SRC_<PKG>=/path is set (SRC_AGE_PLUGIN_SSHAGENT for age-plugin-sshagent). Never both: an override replaces the
 # download completely, is announced loudly, is not verified, and is refused inside GitHub Actions.
+# A package with `source: local` in upstream.yaml is built from its own directory: nothing is fetched, src/ is not made.
 #
 # --print-sha downloads the tarball only and prints its sha256 (used by bump-version.sh).
 set -eu
@@ -35,6 +36,12 @@ download() { # download PKG DEST
 for pkg in "$@"; do
   [ -f "$MAIN/$pkg/pkgops.yaml" ] || die "no such package: $pkg"
   override=$(src_override "$pkg")
+  if is_local "$pkg"; then
+    [ -z "$PRINT_SHA" ] || die "$pkg: source: local, there is no tarball and no sha256"
+    [ -z "$override" ] || die "$pkg: source: local, it is built from main/$pkg itself; unset $(src_var "$pkg")"
+    note "$pkg: local source (main/$pkg), nothing to fetch"
+    continue
+  fi
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fetch-source.XXXXXX")
   trap 'rm -rf "$tmp"' EXIT
 
