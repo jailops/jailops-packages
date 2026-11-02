@@ -7,7 +7,7 @@ tag_prefix: v                        # tag = tag_prefix + version (without a _N 
 # ${repo} ${tag} ${version} are replaced. The API tarball also works for a private repository (with the token).
 tarball: https://api.github.com/repos/${repo}/tarball/${tag}
 strip_components: 1
-sha256: b5470273269b3a3de30055742fc215d586050504a5c951ab51c72eb26765e8d5
+sha256: e7c1e31ab288a840f5bb01039670ab7e461600a71ed049e9b8a7cee4ccbf7735
 token_env:      # optional: a secret (also an env var) with read access to a private repo; skipped with a message when it is needed and absent
 prebuild: jailops-share              # steps of scripts/prebuild.sh, space separated; empty = none
 bump_note: jailops runs as root-adjacent daemons and consoles (jailopsd, jailops-priv, jailops-backupd): read the release notes for rc.d, config and API changes before merging.
