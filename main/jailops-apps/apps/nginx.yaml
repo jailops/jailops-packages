@@ -12,6 +12,7 @@ description: |
 category: web
 homepage: https://nginx.org/
 license: BSD-2-Clause
+icon: nginx.svg
 image:
   os: freebsd
   release_min: "15.1"
