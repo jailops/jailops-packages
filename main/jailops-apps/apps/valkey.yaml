@@ -14,6 +14,7 @@ description: |
 category: database
 homepage: https://valkey.io/
 license: BSD-3-Clause
+icon: valkey.svg
 image:
   os: freebsd
   release_min: "15.1"

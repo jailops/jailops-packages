@@ -15,6 +15,7 @@ description: |
 category: devops
 homepage: https://forgejo.org/
 license: MIT
+icon: forgejo.svg
 image:
   os: freebsd
   release_min: "15.1"
