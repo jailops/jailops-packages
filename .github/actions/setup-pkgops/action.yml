@@ -12,12 +12,12 @@ runs:
       id: pin
       shell: bash
       run: echo "ref=$(tr -d ' \n\r' < PKGOPS_VERSION)" >> "$GITHUB_OUTPUT"
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         repository: jailops/jailops-pkgops
         ref: ${{ steps.pin.outputs.ref }}
         path: .pkgops-src
-    - uses: actions/setup-go@v5
+    - uses: actions/setup-go@v7
       with:
         go-version: stable
         cache: false

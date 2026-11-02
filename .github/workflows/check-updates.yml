@@ -48,7 +48,7 @@ jobs:
       JAILOPS_SOURCE_TOKEN: ${{ secrets.JAILOPS_SOURCE_TOKEN }}
       STRICT: ${{ inputs.strict && '1' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Check upstreams, open pull requests, write the summary
@@ -62,6 +62,6 @@ jobs:
     env:
       STRICT: ${{ inputs.strict && '1' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Package names against the official FreeBSD repository
         run: sh .github/scripts/check-updates.sh collisions
