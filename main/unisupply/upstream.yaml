@@ -5,6 +5,6 @@ repo: unidoc/unisupply
 tag_prefix: v
 tarball: https://github.com/${repo}/archive/refs/tags/${tag}.tar.gz
 strip_components: 1
-sha256: 7cc862b51224b3c39fd8e064984b423ec63e650fcc8bfcb71df4d9275394f36f
+sha256: 2f0b112a071fd95b7c9794177d678f0c0bc685d1b677cde0ad4f0d90ab5c635c
 token_env:
 prebuild:
