@@ -5,7 +5,7 @@ repo: unidoc/isms
 tag_prefix: v
 tarball: https://github.com/${repo}/archive/refs/tags/${tag}.tar.gz
 strip_components: 1
-sha256: 962d74de9da3f6dca6caa5028876deee2787d33c8e9c72d17b20397246cfa70f   # sha512 equals the APKBUILD's
+sha256: 6dac2a584fc62ebe12be8ce055b4760b077f7cad8033cf6048ca9f8835188e6f
 token_env:
 # scripts/sync-migrations.sh, cd web && npm ci && npm run build, copy web/dist into cmd/isms/web/dist (Node 24 + npm)
 prebuild: isms-web
