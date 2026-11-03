@@ -4,7 +4,7 @@ repo: jailops/jailops
 tag_prefix: v
 tarball: https://api.github.com/repos/${repo}/tarball/${tag}
 strip_components: 1
-sha256: e7c1e31ab288a840f5bb01039670ab7e461600a71ed049e9b8a7cee4ccbf7735
+sha256: 74a9608951b1c75aa2c8c9c600e33742f16e561f498d96256746cde574dca9b6
 token_env:
 # the backup node console is embedded in jailops-backupd (web/apps.json: backup -> internal/backupui)
 prebuild: jailops-web:backup jailops-share
