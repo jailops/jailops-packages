@@ -1,7 +1,7 @@
 # isms: build recipe ported from unidoc-aports/main/isms/APKBUILD (in production there); the FreeBSD parts
 # (paths, user, service:, post-install text) are NOT yet run on a FreeBSD host.
 name: isms
-version: 0.8.1
+version: 0.9.0
 origin: jailops/isms
 comment: Open-source ISMS platform - git-native documents, PostgreSQL collaboration, single binary
 desc: |
