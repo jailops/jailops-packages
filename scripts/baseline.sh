@@ -16,6 +16,15 @@
 #
 # --refresh-cache SITE_DIR: replace the cache with the files SITE_DIR's index lists (after the site is final).
 #
+# VERIFIED against the signing key. The index is not signed, and the publish job signs new catalogs over this baseline,
+# so before anything is fetched the site's public key (SITE_URL/jailops.pub) is downloaded and accepted only when its
+# sha256 is the one committed in KEY_FINGERPRINT; `pkgops fetch --pubkey` then verifies the site's signed catalogs with it
+# and refuses an index that does not match them (a changed package and hash, an entry the catalog does not advertise).
+# A site without that key has no signed state to take: only the archive is used then. BASELINE_KEY_FINGERPRINT
+# overrides KEY_FINGERPRINT for one run (key rotation: the old key's fingerprint). A pkgops without `fetch --pubkey` is
+# refused, unless BASELINE_UNVERIFIED_OK=1 (the build job, which signs nothing): then it says NOT VERIFIED and goes on.
+# Limits (older versions carry no signature, no rollback serial): docs/BASELINE-CACHE.md.
+#
 # A failure stops the run. The ONE exception is the very first publish, when there is nothing to fetch yet:
 # BASELINE_FIRST_RUN=1 (the `first_run` input of the workflow) continues with an empty site, loudly.
 # Needs PKGOPS_ARCHIVE_REPO (default GITHUB_REPOSITORY) and a token in GITHUB_TOKEN for the archive.
@@ -66,7 +75,40 @@ if [ -d "$CACHE" ] && [ "${BASELINE_FIRST_RUN:-}" != 1 ]; then
   rm -f "$SITE/.seed.list"
 fi
 
-if out=$(pkgops fetch --from "$URL" --into "$SITE" --prune "$REPO_ROOT/prune.yaml" --source auto); then
+# the trusted key: the site's copy, accepted only with the committed fingerprint
+KT=$(mktemp -d "${TMPDIR:-/tmp}/baseline-key.XXXXXX"); trap 'rm -rf "$KT"' EXIT
+from=$URL; source=auto
+set --
+if pkgops fetch -h 2>&1 | grep -q -- '-pubkey'; then
+  command -v curl >/dev/null 2>&1 || die "curl is not on PATH"
+  want=${BASELINE_KEY_FINGERPRINT:-$(tr -d ' \n\r' < "$REPO_ROOT/KEY_FINGERPRINT" 2>/dev/null || true)}
+  is_sha256 "$want" || die "KEY_FINGERPRINT is missing or not a sha256: the baseline cannot be verified (scripts/keygen.sh)"
+  code=$(curl -sS --max-time 60 --max-filesize 65536 -o "$KT/key.pub" -w '%{http_code}' "$URL/jailops.pub" 2>"$KT/err") || code=error
+  case "$code" in
+    200)
+      have=$(sha256_of "$KT/key.pub")
+      [ "$have" = "$want" ] || die "$URL/jailops.pub has sha256 $have, but KEY_FINGERPRINT says $want: the site is not signed with our key, or the key was replaced. Nothing was fetched or published."
+      set -- --pubkey "$KT/key.pub" --pubkey-sha256 "$want"
+      echo "baseline: verifying the published catalogs with the key $want (KEY_FINGERPRINT)"
+      ;;
+    404)
+      # no key, so no signed state to take: the archive only (or nothing on a first run)
+      warn "no public key at $URL/jailops.pub: the published site is not used as a baseline, only the archive"
+      from="github-releases:$PKGOPS_ARCHIVE_REPO"; source=releases
+      ;;
+    *)
+      [ "${BASELINE_FIRST_RUN:-}" = 1 ] || die "cannot read $URL/jailops.pub (HTTP $code: $(cat "$KT/err" 2>/dev/null)): no baseline from $URL. Nothing is published."
+      warn "FIRST RUN: $URL/jailops.pub cannot be read (HTTP $code); trying the archive only"
+      from="github-releases:$PKGOPS_ARCHIVE_REPO"; source=releases
+      ;;
+  esac
+elif [ "${BASELINE_UNVERIFIED_OK:-}" = 1 ]; then
+  warn "NOT VERIFIED: this pkgops has no 'fetch --pubkey', so the baseline is checked against the unsigned index only. Allowed here (BASELINE_UNVERIFIED_OK=1, nothing is signed); the publish job refuses it. Raise PKGOPS_VERSION."
+else
+  die "this pkgops cannot verify the published baseline against the signing key (no 'fetch --pubkey'): raise PKGOPS_VERSION to a release that has it. Nothing is signed over an unverified baseline."
+fi
+
+if out=$(pkgops fetch --from "$from" --into "$SITE" --prune "$REPO_ROOT/prune.yaml" --source "$source" "$@"); then
   echo "$out"
   [ -f "$SITE/pkgops-index.json" ] || die "pkgops fetch succeeded but wrote no pkgops-index.json"
   # the index decides: drop every .pkg it does not list, and partial downloads

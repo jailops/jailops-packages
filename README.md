@@ -80,27 +80,37 @@ main/<pkg>/upstream.yaml   where the source comes from: repo, tag prefix, tarbal
                            or `source: local`: the package is built from its own directory (jailops-apps)
 pkgops-repo.yaml           policy: ABIs and minimum release 15.1 (refused otherwise)
 prune.yaml                 the ONLY way a version leaves the site
-scripts/                   check, fetch-source, prebuild, build-pkg, baseline, changed, validate-apps, verify-site, site-files, bump-version, keygen
+scripts/                   check, fetch-source, prebuild, build-pkg, baseline, changed, validate-apps, verify-site, site-files, bump-version, keygen,
+                           check-actions-pinned
 .github/workflows/         build-and-publish.yml, check-updates.yml (scripts: .github/scripts/)
-tests/                     offline tests (update check, baseline cache, changed packages, source: local): sh tests/run.sh
-KEY_FINGERPRINT            sha256 of the public signing key (not secret; the publish job refuses another key)
-PKGOPS_VERSION             the pinned pkgops release (v0.1.0)
+tests/                     offline tests (update check, baseline cache and its verification, changed packages, source: local,
+                           workflow rules): sh tests/run.sh
+KEY_FINGERPRINT            sha256 of the public signing key (not secret; the publish job refuses another key, and the
+                           baseline is verified with the key that has it)
+PKGOPS_VERSION             the pinned pkgops release (see the file)
 ```
 
 A push to `master` runs `build-and-publish.yml`:
 
-1. **build** job: `scripts/check-pkgops.sh`, install the pinned pkgops, `scripts/baseline.sh` (`pkgops fetch` from the live
-   site, or from the GitHub Releases archive when the site has no index), `scripts/changed.sh` (the packages whose
+1. **build** job: `scripts/check-pkgops.sh`, install the pinned pkgops, `scripts/baseline.sh` (`pkgops fetch --pubkey` from
+   the live site, its signed catalogs verified with the key whose sha256 is `KEY_FINGERPRINT`, or from the GitHub Releases
+   archive when the site has no key or index), `scripts/changed.sh` (the packages whose
    current version is missing from the baseline index, and nothing else: touching files, scripts or the pin builds nothing),
    `scripts/validate-apps.sh` when `jailops-apps` or `jailops` is to be built (see "The application catalog" below), `scripts/build-pkg.sh`
    (fetch source with sha256 check, prebuild, `pkgops build --abi all`), then an unsigned `pkgops repo` + `pkgops verify`
    in the runner. Pull requests and other branches stop here: **no signing, no publishing**.
-2. **publish** job (master only, GitHub Environment `signing`): fetches the baseline again, writes the key to
-   `$RUNNER_TEMP` with umask 077, `scripts/site-files.sh` (public key `jailops.pub`, `jailops.fingerprint`, `CNAME`,
-   `index.html`, all derived from the secret on every run), `pkgops repo --policy --prune --key`, `pkgops verify`,
-   `scripts/verify-site.sh` (no package vanished), `pkgops archive push` (every `.pkg` into GitHub Releases), removes the key,
-   uploads the site as the Pages artifact.
+2. **publish** job (master only, GitHub Environment `signing`): first everything that is downloaded or checked: the built
+   packages, the cache, the baseline again (verified as above), `pkgops verify-archive` (the baseline agrees with the
+   archive). Only then one step writes the key to `$RUNNER_TEMP` with umask 077, runs `scripts/site-files.sh` (public key
+   `jailops.pub`, `jailops.fingerprint`, `CNAME`, `index.html`, all derived from the secret on every run) and
+   `pkgops repo --policy --prune --key`, and removes the key; an `if: always()` step removes it again. Then `pkgops verify`,
+   `scripts/verify-site.sh` (no package vanished), `pkgops archive push` (every `.pkg` into GitHub Releases), and the
+   site as the Pages artifact. Order, permissions per job and action pins are checked by `scripts/check-pkgops.sh`
+   ([docs/supply-chain.md](docs/supply-chain.md)).
 3. **deploy** job: `actions/deploy-pages`. The site is an artifact; no binary is ever in git or a `gh-pages` branch.
+
+**`PKGOPS_VERSION` must be a pkgops release with `fetch --pubkey`** (the first one after 0.2.0). With an older pin the
+build job warns NOT VERIFIED and the publish job stops in the baseline step, before the key exists, and publishes nothing.
 
 Packages that are already published are never rebuilt: the published index is the only trigger (a package is built when its
 version is not in it), so a change to a script, the pin or a workflow rebuilds nothing, and a real change to a package
@@ -218,16 +228,18 @@ Deleting from the archive is a separate, confirmed command (`pkgops archive prun
    cannot do an Access login. Check that `https://pkg.jailops.net/jailops.pub` answers without a login.
 4. Make the signing key **yourself**: `sh scripts/keygen.sh` (needs `pkgops` on PATH). It writes the key outside the repository
    (`~/.config/jailops-packages/jailops-repo.key`), `KEY_FINGERPRINT` and the README fingerprint. Back the key up.
-5. Settings, Environments, New environment `signing` (admin-only secrets; no required reviewers needed). Add the secret
-   `PKG_REPO_KEY` there (`gh secret set PKG_REPO_KEY --env signing --repo jailops/jailops-packages < ~/.config/jailops-packages/jailops-repo.key`).
-   Never a repository-level secret, never in a pull request. Commit `KEY_FINGERPRINT` and `README.md`.
+5. Settings, Environments, New environment `signing`: deployment branches **`master` only**; required reviewers are your
+   choice (docs/supply-chain.md). Add the secret `PKG_REPO_KEY` there (`gh secret set PKG_REPO_KEY --env signing --repo jailops/jailops-packages < ~/.config/jailops-packages/jailops-repo.key`).
+   Never a repository-level secret, never in a pull request. Commit `KEY_FINGERPRINT` and `README.md`. The YAML cannot
+   prove these settings exist: confirm them with the commands in [docs/supply-chain.md](docs/supply-chain.md).
 6. Optional repository secrets: `JAILOPS_SOURCE_TOKEN` (read access to `jailops/jailops` while it is private), `UPDATE_TOKEN`
    (a token that may open PRs and start workflows, for `check-updates.yml`).
 7. Publish the pkgops tag `v0.1.0` in `jailops/jailops-pkgops` (or put a commit SHA in `PKGOPS_VERSION`), tag `jailops/jailops` `v0.1.0`
    and run `sh scripts/bump-version.sh --pin pkgops jailops-client jailops jailops-backupd`.
 8. First publish only: Actions, "Build and publish", Run workflow with `first_run` = true (there is no site and no archive to
    take a baseline from). Every later run without it fails when no baseline can be fetched, so nothing can vanish.
-9. Branch protection on `master` is yours to decide (you push straight to `master`). The workflows never need it.
+9. Branch protection on `master` is yours to decide (you push straight to `master`). The workflows do not need it to run,
+   but whoever can push to `master` can change the workflow that holds the signing key: see docs/supply-chain.md.
 10. The admin UI (`pkgops serve --source ...`): a GitHub App installed on this repository only (Contents and Actions read-write,
     Metadata read), the private key on the host that runs `pkgops serve` (0600), the service on a **separate admin hostname** behind
     Cloudflare Access (self-hosted application, AUD tag, allow list). See PkgOps docs/admin.md. The admin hostname must never be `pkg.jailops.net`.
@@ -262,7 +274,10 @@ Done locally (FreeBSD 15.1-RELEASE arm64 with pkg 2.8.4 as the target, a throwaw
 - real `pkg` in a private root with `pkg -r`: `pkg update`, `pkg install jailops jailops-backupd pkgops age-plugin-sshagent incus-sync unisupply`
   (41 packages with git and its dependencies from the official repository), users and groups created, directories, rc.d scripts, `pkg check -s`;
   a 15.0 userland (`OSVERSION=1500000`) is refused by `pkg update`;
-- the baseline cache against a local static site (`tests/test-baseline.sh`: cold, warm, added, pruned, corrupted, foreign files, first run, failure);
+- the baseline cache against a local static site (`tests/test-baseline.sh`: cold, warm, added, pruned, corrupted, foreign files, first run, failure),
+  and its verification against the signing key (a package and its hash changed on the site, another key, a re-signed site,
+  rollback, an older pkgops);
+- the workflow rules (`tests/test-workflow.sh`: the key only after every download, its removal, permissions per job, action pins);
 - `jailops-apps` 0.4.0 built from `main/jailops-apps` (`source: local`) with `scripts/build-pkg.sh` and pkgops, both ABIs,
   12 files; `scripts/validate-apps.sh` with a client that has `app validate` (valid; an invalid definition fails) and with
   one that has not (NOT VALIDATED warning, exit 0); `tests/test-local.sh`;

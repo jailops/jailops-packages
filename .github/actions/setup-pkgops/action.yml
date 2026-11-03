@@ -17,6 +17,7 @@ runs:
         repository: jailops/jailops-pkgops
         ref: ${{ steps.pin.outputs.ref }}
         path: .pkgops-src
+        persist-credentials: false   # the token is not needed after the checkout, and pkgops is built from this tree
     - uses: actions/setup-go@v7
       with:
         go-version: stable

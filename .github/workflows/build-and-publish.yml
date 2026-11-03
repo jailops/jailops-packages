@@ -12,8 +12,11 @@ name: Build and publish
 # The site is an artifact rebuilt every run: baseline (pkgops fetch from the live site, or the Releases archive) plus
 # the packages built now. The package files of the baseline come from the Actions cache when they match the live index
 # (scripts/baseline.sh); the cache only saves downloads and never decides what is published. Nothing is deleted automatically: a version leaves the site only through prune.yaml.
+# The baseline is verified against the signing key (KEY_FINGERPRINT) before anything is fetched, and in the publish job
+# everything that is downloaded, restored or verified happens before the key is written; the key exists only during
+# the signing step and is removed right after it (docs/supply-chain.md).
 #
-# One-time setup this file cannot do: see "Maintainers" in README.md.
+# One-time setup this file cannot do: see "Maintainers" in README.md and docs/supply-chain.md (GitHub settings).
 
 on:
   push:
@@ -47,9 +50,12 @@ on:
 env:
   GOTOOLCHAIN: auto
   SITE_URL: https://pkg.jailops.net
+  # Third-party actions must be pinned to a commit SHA (scripts/check-actions-pinned.sh). There are none today, so this
+  # enforces; "0" would only warn.
+  ACTIONS_PIN_ENFORCE: "1"
 
-permissions:
-  contents: read
+# Nothing by default: every job names what it needs.
+permissions: {}
 
 # Every publish rebuilds the whole site from the live one: two overlapping runs would revert each other.
 concurrency:
@@ -59,15 +65,20 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     outputs:
       pkgs: ${{ steps.changed.outputs.pkgs }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: No binaries in git
         run: sh scripts/no-binaries.sh
+      - name: Third-party actions pinned to a commit SHA
+        run: sh scripts/check-actions-pinned.sh
       - name: Check the repository (manifests, policy, GOTOOLCHAIN, no keys, immutability)
         env:
           CHECK_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
@@ -88,9 +99,11 @@ jobs:
           restore-keys: |
             baseline-${{ hashFiles('PKGOPS_VERSION') }}-
 
-      - name: Baseline (what is published now)
+      - name: Baseline (what is published now; verified against KEY_FINGERPRINT)
         env:
           BASELINE_FIRST_RUN: ${{ inputs.first_run && '1' || '' }}
+          # this job signs nothing: an older pinned pkgops without `fetch --pubkey` only warns here
+          BASELINE_UNVERIFIED_OK: "1"
           GITHUB_TOKEN: ${{ github.token }}
         run: sh scripts/baseline.sh site "$SITE_URL"
 
@@ -159,28 +172,19 @@ jobs:
     runs-on: ubuntu-24.04
     # The signing key lives only in this Environment (a repository secret can be overwritten by anyone with write
     # access; an environment secret needs admin). The job never runs for a pull request or a branch other than master.
+    # Its protection rules (required reviewers, deployment branches: master only) are GitHub settings, not YAML:
+    # docs/supply-chain.md says which to confirm.
     environment: signing
     permissions:
       contents: write   # the archive: one GitHub release per package version
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: ./.github/actions/setup-pkgops
 
-      - name: Write the signing key (umask 077, in RUNNER_TEMP, removed at the end)
-        env:
-          PKG_REPO_KEY: ${{ secrets.PKG_REPO_KEY }}
-        run: |
-          set -eu
-          if [ -z "$PKG_REPO_KEY" ]; then
-            echo "::error title=PKG_REPO_KEY is not set::Create the Environment 'signing' with the secret PKG_REPO_KEY (README, Maintainers) before the first publish. Nothing was published."
-            exit 1
-          fi
-          umask 077
-          key="$RUNNER_TEMP/pkg-repo.key"
-          printf '%s\n' "$PKG_REPO_KEY" > "$key"
-          echo "KEY_FILE=$key" >> "$GITHUB_ENV"
-
+      # Everything that is downloaded, restored or verified comes first; the key is not on disk yet.
       - uses: actions/download-artifact@v8
         with:
           name: dist
@@ -202,21 +206,47 @@ jobs:
           restore-keys: |
             baseline-${{ hashFiles('PKGOPS_VERSION') }}-
 
-      - name: Baseline again (the freshest published state, right before signing)
+      - name: Baseline again (the freshest published state; verified against KEY_FINGERPRINT, required here)
         env:
           BASELINE_FIRST_RUN: ${{ inputs.first_run && '1' || '' }}
           GITHUB_TOKEN: ${{ github.token }}
         run: sh scripts/baseline.sh site "$SITE_URL"
 
-      - name: Site files derived from the key (public key, fingerprint, CNAME, index.html)
-        run: sh scripts/site-files.sh site "$KEY_FILE"
+      # The archive is a second, independent copy of every published version: a changed older version (no signature
+      # covers it) or a version that was published and is now missing (an older site served again) stops the run here.
+      - name: Cross-check the baseline with the archive (before the key exists)
+        if: ${{ !inputs.first_run }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pkgops verify-archive --repo "$GITHUB_REPOSITORY" --from site --prune prune.yaml
 
-      - name: Add the packages and sign
+      # The only step with the key on disk: written with umask 077, used for the site files and the signature, removed
+      # when the step ends (trap) and again by the next step, whatever happened.
+      - name: Sign (site files derived from the key, then the catalogs)
+        env:
+          PKG_REPO_KEY: ${{ secrets.PKG_REPO_KEY }}
         run: |
           set -eu
+          if [ -z "$PKG_REPO_KEY" ]; then
+            echo "::error title=PKG_REPO_KEY is not set::Create the Environment 'signing' with the secret PKG_REPO_KEY (README, Maintainers) before the first publish. Nothing was published."
+            exit 1
+          fi
+          umask 077
+          key="$RUNNER_TEMP/pkg-repo.key"
+          trap 'shred -u "$key" 2>/dev/null || rm -f "$key"' EXIT
+          printf '%s\n' "$PKG_REPO_KEY" > "$key"
+          unset PKG_REPO_KEY
+          sh scripts/site-files.sh site "$key"
           mkdir -p dist
           if [ -n "$(find dist -name '*.pkg' -print -quit)" ]; then set -- dist; else set --; fi
-          pkgops repo --repo site --policy pkgops-repo.yaml --prune prune.yaml --key "$KEY_FILE" "$@"
+          pkgops repo --repo site --policy pkgops-repo.yaml --prune prune.yaml --key "$key" "$@"
+
+      - name: Remove the signing key
+        if: always()
+        run: |
+          key="$RUNNER_TEMP/pkg-repo.key"
+          if [ -e "$key" ]; then shred -u "$key" 2>/dev/null || rm -f "$key"; fi
+          [ ! -e "$key" ]
 
       - name: Verify the signed repository
         run: |
@@ -228,10 +258,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: pkgops archive push --repo "$GITHUB_REPOSITORY" --from site
-
-      - name: Remove the signing key
-        if: always()
-        run: rm -f "$RUNNER_TEMP/pkg-repo.key"
 
       - name: Cache the published package files for the next run (.baseline-cache only; never the key or the site)
         run: sh scripts/baseline.sh --refresh-cache site
