@@ -20,4 +20,30 @@ package files out of Pages is NOT done now. The cache keys (`baseline-<PKGOPS_VE
 PkgOps version starts clean) and the restore/save behaviour are UNVERIFIED on GitHub; the entries are evicted after 7 days
 unused or when the repository's cache quota is full, which only means a cold download.
 
+## Verified against the signing key
+
+The index (`pkgops-index.json`) is not signed, and the publish job signs new catalogs over the baseline. So before
+anything is fetched, `scripts/baseline.sh` downloads the site's public key (`jailops.pub`) and accepts it only when its
+sha256 is the one committed in `KEY_FINGERPRINT`; `pkgops fetch --pubkey` then verifies both signed catalogs of every ABI
+with it and refuses the baseline when the index does not match them: a package changed together with its index hash, a
+package or version the signed catalog does not advertise, a newer version than the signed one, a prune that would make
+an unsigned version the newest. The run stops in the baseline step; in the publish job that is before the key is written
+(docs/supply-chain.md). `tests/test-baseline.sh` has the cases, including that acceptance test.
+
+- **First publish**: there is no key and no index on the site; `first_run` stays the explicit, logged way to start
+  from nothing. A site without `jailops.pub` is never used as a baseline, only the archive.
+- **Key rotation**: the site is still signed with the old key during the first publish with the new one. Set
+  `BASELINE_KEY_FINGERPRINT` (the old fingerprint) in the workflow for that one run, then remove it.
+- **Older versions are not signed**: pkg's catalog lists only the newest version of each package, so the older ones
+  are checked against the index only, as before. They are never advertised or signed by the next run. The publish job
+  compares the baseline with the GitHub Releases archive (`pkgops verify-archive`) before the key is written, which
+  catches a changed older file as long as the archive is intact.
+- **Rollback**: the catalogs carry no signed serial or date. An older signed catalog served next to the current index
+  is refused (the index then lists versions above the signed ones). A complete older snapshot of the site verifies;
+  then every package whose current version is missing is rebuilt from `main/` (only the published index decides what
+  is built), and in the publish job `verify-archive` stops the run, since the archive holds versions the snapshot lacks.
+- **The archive** is not signed either; it is trusted as far as this GitHub repository is.
+- A signed index (history and a serial covered by the key) is a design note in PkgOps `docs/hosting.md`, "Verified
+  baseline"; it needs a change of what pkgops signs.
+
 Where it lives: `scripts/baseline.sh` (`--refresh-cache SITE` rewrites the cache from a final site), the `actions/cache/restore@v4` steps and the single `actions/cache/save@v4` step in `.github/workflows/build-and-publish.yml`, and the checks in `scripts/check-pkgops.sh`.

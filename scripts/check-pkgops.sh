@@ -22,7 +22,11 @@
 #   - every workflow that builds sets GOTOOLCHAIN: auto at workflow level; scripts that run go or pkgops build too
 #   - check-updates.yml: calls only scripts that exist, uses no secret except UPDATE_TOKEN and JAILOPS_SOURCE_TOKEN (UPDATE_TOKEN
 #     in no other workflow), and the monthly collisions job holds no write permission
-#   - the signing secret appears only in build-and-publish.yml, once, with `environment: signing`, never in a pull_request job
+#   - the signing secret appears only in build-and-publish.yml, once, with `environment: signing`, never in a pull_request job;
+#     in that job every download, cache restore, baseline and archive check comes before the key is written, and the step
+#     right after the signing step removes the key with `if: always()`
+#   - build-and-publish.yml: `permissions: {}` at the top and a `permissions:` block in every job
+#   - every third-party action is pinned to a commit SHA (scripts/check-actions-pinned.sh; ACTIONS_PIN_ENFORCE=0 warns only)
 #   - immutability, with BASE_REF (or $CHECK_BASE): a package whose main/<pkg>/ changed since BASE_REF must have a new
 #     version (scripts/bump-version.sh --revision for a packaging change). Exceptions: pinning a PENDING sha256, and a
 #     change of comment lines of pkgops.yaml only (outside block scalars; comments never reach the package).
@@ -183,9 +187,30 @@ if [ -d "$wf" ]; then
     if [ -n "$kj" ]; then
       awk -v j="  $kj:" '$0 == j {inj=1; next} /^  [a-z_-]+:[[:space:]]*$/ {inj=0} inj && /github\.event_name != .pull_request./ {ok=1} END {exit ok?0:1}' "$bp" ||
         fail "build-and-publish.yml: job '$kj' holds the signing key but has no \"github.event_name != 'pull_request'\" condition"
+      # inside that job: nothing is downloaded, restored or fetched after the key is written, and the next step removes it
+      order=$(awk -v j="  $kj:" '
+        $0 == j {inj=1; next} /^  [a-z_-]+:[[:space:]]*$/ {inj=0}
+        !inj {next}
+        /^      - / {step++}
+        /secrets\.PKG_REPO_KEY/ {keystep = step}
+        keystep && /download-artifact|actions\/cache\/restore|scripts\/baseline\.sh site|verify-archive|setup-pkgops|actions\/checkout/ {late = late " " NR}
+        keystep && step == keystep + 1 && /if:[[:space:]]*always\(\)/ {always = 1}
+        keystep && step == keystep + 1 && /pkg-repo\.key/ {removes = 1}
+        END {printf "%s|%d|%d", late, always, removes}' "$bp")
+      [ -z "${order%%|*}" ] || fail "build-and-publish.yml: job '$kj' downloads, restores or fetches after the key is written (lines${order%%|*}): do all of that first"
+      [ "${order#*|}" = "1|1" ] || fail "build-and-publish.yml: the step right after the signing step must remove pkg-repo.key with 'if: always()'"
     fi
   fi
+  if [ -f "$bp" ]; then
+    grep -Eq '^permissions:[[:space:]]*\{\}[[:space:]]*$' "$bp" || fail "build-and-publish.yml: the workflow-level permissions must be {} (each job names its own)"
+    for j in $(awk '/^jobs:/ {inj=1; next} inj && /^[^[:space:]#]/ {inj=0} inj && /^  [a-z_-]+:[[:space:]]*$/ {print $1}' "$bp" | tr -d ':'); do
+      awk -v j="  $j:" '$0 == j {inj=1; next} /^  [a-z_-]+:[[:space:]]*$/ {inj=0} inj && /^    permissions:/ {ok=1} END {exit ok?0:1}' "$bp" ||
+        fail "build-and-publish.yml: job '$j' has no permissions: block"
+    done
+  fi
 fi
+ACTIONS_PIN_ENFORCE=${ACTIONS_PIN_ENFORCE:-1} sh "$REPO_ROOT/scripts/check-actions-pinned.sh" "$REPO_ROOT/.github" >&2 ||
+  fail "a third-party action is not pinned to a commit SHA (docs/supply-chain.md)"
 
 # the baseline cache: restored in both baseline steps, saved only in the publish job (never for a pull request), and only
 # the .baseline-cache directory, never the key, the site or the workspace

@@ -1,8 +1,9 @@
 #!/bin/sh
-# Offline tests of scripts/baseline.sh (incremental baseline from the Actions cache). A tiny signed repository is built
-# with pkgops and served by a static server on loopback; nothing here needs the network, a secret or a real key.
-# The signing key is generated into a temp dir and deleted again.
-#   PKGOPS=/path/to/pkgops    use this binary (default: pkgops on PATH, else built from PKGOPS_SRC at tag v0.1.0)
+# Offline tests of scripts/baseline.sh (incremental baseline from the Actions cache, verified against the signing key).
+# A tiny signed repository is built with pkgops and served by a static server on loopback; nothing here needs the
+# network, a secret or a real key. The signing key is generated into a temp dir and deleted again.
+#   PKGOPS=/path/to/pkgops    use this binary (default: pkgops on PATH when it has `fetch --pubkey`, else built from
+#                             the working tree of PKGOPS_SRC)
 #   PKGOPS_SRC=DIR            a jailops-pkgops checkout (default ../../jailops-pkgops); needs go and GOPROXY=off modules
 set -u
 HERE=$(cd "$(dirname "$0")/.." && pwd)
@@ -15,11 +16,13 @@ eq() { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1: expected '$2', got '$3'";
 
 # ---- pkgops
 PKGOPS=${PKGOPS:-$(command -v pkgops || true)}
+if [ -n "$PKGOPS" ] && ! "$PKGOPS" fetch -h 2>&1 | grep -q -- '-pubkey'; then
+  echo "note: $PKGOPS has no 'fetch --pubkey'; building one from PKGOPS_SRC"; PKGOPS=
+fi
 if [ -z "$PKGOPS" ]; then
   SRC=${PKGOPS_SRC:-$HERE/../jailops-pkgops}
-  mkdir -p "$T/src" "$T/bin"
-  if git -C "$SRC" rev-parse -q --verify v0.1.0 >/dev/null 2>&1; then git -C "$SRC" archive v0.1.0 | tar -x -C "$T/src"; else cp -R "$SRC/." "$T/src/"; fi
-  (cd "$T/src" && GOTOOLCHAIN=auto GOPROXY=off go build -o "$T/bin/pkgops" ./cmd/pkgops) || { echo "cannot build pkgops"; exit 1; }
+  mkdir -p "$T/bin"
+  (cd "$SRC" && GOTOOLCHAIN=auto GOPROXY=off go build -o "$T/bin/pkgops" ./cmd/pkgops) || { echo "cannot build pkgops"; exit 1; }
   PKGOPS=$T/bin/pkgops
 fi
 mkdir -p "$T/pbin"; ln -s "$PKGOPS" "$T/pbin/pkgops"
@@ -30,7 +33,7 @@ ABI='FreeBSD:15:amd64'; ALL="$ABI/latest/All"
 # ---- a throwaway key, an "upstream" site and a static server
 pkgops key generate --out "$T/k.key" --bits 2048 >/dev/null
 U=$T/upstream; mkdir -p "$U" "$T/empty"
-mk() { # mk NAME VERSION : build one package of ~100 KB of random data and add it to the upstream site
+build() { # build NAME VERSION : one package of ~100 KB of random data in $T/dist
   head -c 100000 /dev/urandom > "$T/blob"
   cat > "$T/m.yaml" <<MF
 name: $1
@@ -48,10 +51,12 @@ files:
     destination: share/$1/blob
 MF
   rm -rf "$T/dist"
-  (cd "$T" && pkgops build -f m.yaml --abi "$ABI" -o dist --no-go-build >/dev/null) &&
-    pkgops repo --repo "$U" --key "$T/k.key" "$T/dist" >/dev/null || { echo "cannot build $1"; exit 1; }
+  (cd "$T" && pkgops build -f m.yaml --abi "$ABI" -o dist --no-go-build >/dev/null) || { echo "cannot build $1"; exit 1; }
 }
-serve() { python3 -c '
+mk() { # mk NAME VERSION : build one package and add it to the upstream site, signed
+  build "$1" "$2" && pkgops repo --repo "$U" --key "$T/k.key" "$T/dist" >/dev/null || { echo "cannot add $1"; exit 1; }
+}
+serve() { rm -f "$T/port"; python3 -c '
 import http.server, socketserver, functools, sys
 h = functools.partial(http.server.SimpleHTTPRequestHandler, directory=sys.argv[1])
 h.log_message = lambda *a, **k: None
@@ -62,9 +67,12 @@ s = S(("127.0.0.1", 0), h); print(s.server_address[1], flush=True); s.serve_fore
 }
 serve "$U"; URL=http://127.0.0.1:$PORT
 
-# ---- the repository root the script runs against: its own prune.yaml, no entries
+# ---- the repository root the script runs against: its own prune.yaml, no entries, and the key's fingerprint; the
+# site publishes the public key as jailops.pub, like scripts/site-files.sh
 R=$T/root; mkdir -p "$R"
 printf 'schema: 1\nentries: []\n' > "$R/prune.yaml"
+pkgops key public --key "$T/k.key" > "$U/jailops.pub"
+sha256sum "$U/jailops.pub" | cut -d' ' -f1 > "$R/KEY_FINGERPRINT"
 export REPO_ROOT="$R"
 CACHE=$T/cache; export BASELINE_CACHE="$CACHE"
 run() { # run SITE [URL] ; output in $T/out, status in $?
@@ -175,6 +183,81 @@ run "$T/s17" "http://127.0.0.1:1"; rc=$?
 rm -rf "$CACHE"; run "$T/s18"
 mk delta 1.0.0; run "$T/s19"; sh "$HERE/scripts/baseline.sh" --refresh-cache "$T/s19" >/dev/null
 eq "refresh-cache: holds exactly the indexed files" "$(indexed "$T/s19")" "$(cd "$CACHE" && find . -name '*.pkg' | sed 's|^\./||' | sort | tr '\n' ' ')"
+
+# 10. the acceptance test of the verified baseline: a package AND its index hash changed on the site, without the key.
+# The run stops in the baseline step, before the publish job could write the key or sign; nothing is left to sign.
+tamper() { # tamper NAME VERSION : other bytes for the same name and version, and an index that matches them
+  cp "$U/$ALL/$1-$2.pkg" "$T/orig.pkg"; cp "$U/pkgops-index.json" "$T/orig-index.json"
+  build "$1" "$2"; cp "$T/dist/$ABI/$1-$2.pkg" "$U/$ALL/$1-$2.pkg"
+  sum=$(sha256sum "$U/$ALL/$1-$2.pkg" | cut -d' ' -f1); size=$(wc -c < "$U/$ALL/$1-$2.pkg" | tr -d ' ')
+  jq --arg f "$ALL/$1-$2.pkg" --arg s "$sum" --argjson z "$size" '(.packages[] | select(.file == $f)) |= (.sha256 = $s | .size = $z)' \
+    "$U/pkgops-index.json" > "$T/ix.json" && mv "$T/ix.json" "$U/pkgops-index.json"
+}
+untamper() { cp "$T/orig.pkg" "$U/$ALL/$1-$2.pkg"; cp "$T/orig-index.json" "$U/pkgops-index.json"; }
+rm -rf "$CACHE"
+tamper delta 1.0.0
+pipeline() { # the publish job's order: baseline, then (only then) the key and the signature
+  run "$1" && pkgops key generate --out "$T/signer.key" --bits 2048 >/dev/null && pkgops repo --repo "$1" --key "$T/signer.key" >/dev/null && echo signed > "$T/signed"
+}
+rm -f "$T/signed"; pipeline "$T/s20"; rc=$?
+[ "$rc" != 0 ] && ok "tampered package and hash: the pipeline stops ($rc)" || bad "tampered package and hash: accepted"
+grep -q 'signed catalog says' "$T/err" && ok "tampered: says the signed catalog disagrees" || bad "tampered: message: $(cat "$T/err")"
+[ ! -e "$T/signed" ] && [ ! -e "$T/signer.key" ] && ok "tampered: no key was written and nothing was signed" || bad "tampered: signing was reached"
+eq "tampered: nothing left in the site" "" "$(find "$T/s20" -name pkgops-index.json -o -name data.pkg 2>/dev/null | tr '\n' ' ')"
+# a warm cache does not help either
+untamper delta 1.0.0; run "$T/s21"; tamper delta 1.0.0
+run "$T/s22"; rc=$?
+[ "$rc" != 0 ] && ok "tampered with a warm cache: stops" || bad "tampered with a warm cache: accepted"
+untamper delta 1.0.0
+
+# 11. the key on the site is not the committed one
+cp "$U/jailops.pub" "$T/good.pub"
+pkgops key generate --out "$T/other.key" --bits 2048 >/dev/null; pkgops key public --key "$T/other.key" > "$U/jailops.pub"
+run "$T/s23"; rc=$?
+[ "$rc" != 0 ] && grep -q 'KEY_FINGERPRINT says' "$T/err" && ok "another key on the site: stops" || bad "another key on the site: rc $rc $(cat "$T/err")"
+# ... and a whole site re-signed with that key (catalogs, index, key file all agree) stops the same way
+cp -R "$U" "$T/forged"; pkgops repo --repo "$T/forged" --key "$T/other.key" --replace >/dev/null
+kill "$SRV" 2>/dev/null; serve "$T/forged"; FORGED=http://127.0.0.1:$PORT
+run "$T/s24" "$FORGED"; rc=$?
+[ "$rc" != 0 ] && ok "a site re-signed with another key: stops" || bad "a site re-signed with another key: accepted"
+cp "$T/good.pub" "$U/jailops.pub"
+kill "$SRV" 2>/dev/null; serve "$U"; URL=http://127.0.0.1:$PORT
+# key rotation: the old fingerprint for one run
+BASELINE_KEY_FINGERPRINT=$(sha256sum "$T/good.pub" | cut -d' ' -f1) run "$T/s25"; rc=$?
+eq "BASELINE_KEY_FINGERPRINT: used instead of KEY_FINGERPRINT" 0 "$rc"
+# no key on the site at all: the site is not taken as a baseline (offline the archive fails too, so the run stops)
+mv "$U/jailops.pub" "$T/away.pub"
+run "$T/s26"; rc=$?
+[ "$rc" != 0 ] && grep -q 'no public key' "$T/err" && ok "no key on the site: the site is not used" || bad "no key on the site: rc $rc"
+mv "$T/away.pub" "$U/jailops.pub"
+
+# 12. rollback: an older, genuinely signed catalog next to the current index is refused; a whole older snapshot
+# (catalogs and index of an earlier day) verifies, because the catalog has no serial (docs/BASELINE-CACHE.md)
+D=$U/$ABI/latest; mkdir -p "$T/old" "$T/new"
+for f in data.pkg packagesite.pkg meta meta.conf; do cp "$D/$f" "$T/old/$f"; done; cp "$U/pkgops-index.json" "$T/old/"
+mk alpha 1.2.0
+for f in data.pkg packagesite.pkg meta meta.conf; do cp "$D/$f" "$T/new/$f"; cp "$T/old/$f" "$D/$f"; done; cp "$U/pkgops-index.json" "$T/new/"
+run "$T/s27"; rc=$?
+[ "$rc" != 0 ] && grep -q 'newer than alpha-1.1.0' "$T/err" && ok "rollback: an old signed catalog with the current index stops" || bad "rollback: rc $rc $(cat "$T/err")"
+cp "$T/old/pkgops-index.json" "$U/"
+run "$T/s28"; rc=$?
+eq "rollback: a consistent older snapshot verifies (the limit)" 0 "$rc"
+eq "rollback: ... and its baseline does not have the newer version" "" "$(jq -r '.packages[]|select(.name=="alpha" and .version=="1.2.0")|.file' "$T/s28/pkgops-index.json")"
+for f in data.pkg packagesite.pkg meta meta.conf; do cp "$T/new/$f" "$D/$f"; done; cp "$T/new/pkgops-index.json" "$U/"
+run "$T/s29"; eq "back to the current state" 0 "$?"
+
+# 13. an older pkgops without `fetch --pubkey`
+mkdir -p "$T/oldbin"
+cat > "$T/oldbin/pkgops" <<SH
+#!/bin/sh
+if [ "\$1" = fetch ] && [ "\${2:-}" = -h ]; then echo "usage: pkgops fetch --from URL --into DIR" >&2; exit 2; fi
+exec "$PKGOPS" "\$@"
+SH
+chmod +x "$T/oldbin/pkgops"
+PATH="$T/oldbin:$PATH" run "$T/s30"; rc=$?
+[ "$rc" != 0 ] && grep -q 'raise PKGOPS_VERSION' "$T/err" && ok "old pkgops: refused" || bad "old pkgops: rc $rc"
+PATH="$T/oldbin:$PATH" BASELINE_UNVERIFIED_OK=1 run "$T/s31"; rc=$?
+[ "$rc" = 0 ] && grep -q 'NOT VERIFIED' "$T/err" && ok "old pkgops with BASELINE_UNVERIFIED_OK=1: warns and goes on" || bad "old pkgops, unverified ok: rc $rc"
 
 echo "bytes downloaded: cold $COLD (2 packages), warm $WARM, one package added $ADD"
 [ "$fails" = 0 ] && echo "test-baseline: all ok" || echo "test-baseline: $fails FAILED"
