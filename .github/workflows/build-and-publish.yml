@@ -145,6 +145,7 @@ jobs:
             pkgops repo --repo site --policy pkgops-repo.yaml --prune prune.yaml dist
             for abi in FreeBSD:15:amd64 FreeBSD:15:aarch64; do pkgops verify "site/$abi/latest"; done
             sh scripts/verify-site.sh site
+            python3 scripts/versions-index.py site   # the index for web pages, from these (unsigned) catalogs: tested here
           else
             echo "no package was built: nothing to assemble here"
           fi
@@ -253,6 +254,12 @@ jobs:
           set -eu
           for abi in FreeBSD:15:amd64 FreeBSD:15:aarch64; do pkgops verify "site/$abi/latest" --pubkey site/jailops.pub; done
           sh scripts/verify-site.sh site
+
+      # versions.json: the newest version of every package, read from the catalogs verified just above, for web pages
+      # (jailops.net shows the published versions from it). Informational and NOT signed: pkg never reads it, and no
+      # script decides anything from it (baseline, changed, verify-site use pkgops-index.json and the signed catalogs).
+      - name: Versions index for web pages (versions.json; informational, not signed)
+        run: python3 scripts/versions-index.py site
 
       - name: Archive every published package in GitHub Releases (idempotent; before the deploy, from the same bytes)
         env:

@@ -17,7 +17,9 @@ tests the checks).
 5. **Sign**: the only step with the key on disk. It writes `$RUNNER_TEMP/pkg-repo.key` with umask 077, runs
    `scripts/site-files.sh` (public key, fingerprint) and `pkgops repo --key`, and removes the key when it ends;
 6. **Remove the signing key** (`if: always()`): removes it again, whatever happened;
-7. verify the signed repository, archive push, refresh the cache, upload the Pages artifact, save the cache.
+7. verify the signed repository, write `versions.json` from the verified catalogs (informational, unsigned; never an
+   input of a later run: README, "versions.json"), archive push, refresh the cache, upload the Pages artifact, save
+   the cache.
 
 `check-pkgops.sh` fails when anything of steps 1 to 4 comes after the key is written, when the step after signing is
 not an `if: always()` removal of `pkg-repo.key`, when `secrets.PKG_REPO_KEY` appears anywhere else, and when the job

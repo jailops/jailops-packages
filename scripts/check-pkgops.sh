@@ -26,6 +26,8 @@
 #     in that job every download, cache restore, baseline and archive check comes before the key is written, and the step
 #     right after the signing step removes the key with `if: always()`
 #   - build-and-publish.yml: `permissions: {}` at the top and a `permissions:` block in every job
+#   - versions.json (scripts/versions-index.py) is informational: in the publish job it is written only after the signed
+#     catalogs were verified, and no script that decides what is built, fetched or published reads it
 #   - every third-party action is pinned to a commit SHA (scripts/check-actions-pinned.sh; ACTIONS_PIN_ENFORCE=0 warns only)
 #   - immutability, with BASE_REF (or $CHECK_BASE): a package whose main/<pkg>/ changed since BASE_REF must have a new
 #     version (scripts/bump-version.sh --revision for a packaging change). Exceptions: pinning a PENDING sha256, and a
@@ -209,6 +211,17 @@ if [ -d "$wf" ]; then
     done
   fi
 fi
+# versions.json: written from the catalogs `pkgops verify --pubkey` has just verified (publish job), and never an input
+if [ -f "$bp" ]; then
+  vorder=$(awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "publish:" && /pkgops verify .*--pubkey/ && !v {v=NR} job == "publish:" && /versions-index\.py/ && !w {w=NR} END {printf "%d %d", v, w}' "$bp")
+  [ "${vorder#* }" -gt "${vorder% *}" ] && [ "${vorder% *}" -gt 0 ] ||
+    fail "build-and-publish.yml: the publish job must write versions.json (scripts/versions-index.py site) after 'pkgops verify ... --pubkey'"
+fi
+for f in scripts/baseline.sh scripts/changed.sh scripts/verify-site.sh scripts/lib.sh scripts/build-pkg.sh scripts/site-files.sh .github/scripts/*.sh; do
+  if [ -f "$REPO_ROOT/$f" ] && grep -q 'versions\.json' "$REPO_ROOT/$f"; then
+    fail "$f reads versions.json, which is informational and unsigned: decide from pkgops-index.json and the signed catalogs"
+  fi
+done
 ACTIONS_PIN_ENFORCE=${ACTIONS_PIN_ENFORCE:-1} sh "$REPO_ROOT/scripts/check-actions-pinned.sh" "$REPO_ROOT/.github" >&2 ||
   fail "a third-party action is not pinned to a commit SHA (docs/supply-chain.md)"
 
