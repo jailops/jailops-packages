@@ -69,5 +69,25 @@ edit 's = s.replace("      - uses: actions/upload-pages-artifact@v3", "      - u
 check; eq "a short SHA is not a pin" 1 $?
 reset
 
+# versions.json: written after the signed catalogs are verified, never before; and no deciding script reads it
+edit 's = s.replace("        run: python3 scripts/versions-index.py site\n", "        run: echo no index\n")'
+check; eq "publish job without versions.json: refused" 1 $?
+has "versions.json missing: says why" "must write versions.json" "$T/check.out"
+reset
+edit '
+v = s.index("      # versions.json: the newest version")
+a = s.index("      - name: Archive every published package")
+blk = s[v:a]
+s = s[:v] + s[a:]
+k = s.index("      # The only step with the key on disk")
+s = s[:k] + blk + s[k:]'
+check; eq "versions.json before the verified catalogs: refused" 1 $?
+reset
+printf '\n# test\njq . site/versions.json >/dev/null\n' >> "$R/scripts/changed.sh"
+check; eq "a deciding script that reads versions.json: refused" 1 $?
+has "names the script" "scripts/changed.sh reads versions.json" "$T/check.out"
+(cd "$HERE" && cp scripts/changed.sh "$R/scripts/changed.sh")
+check; eq "and passes again without it" 0 $?
+
 [ "$fails" = 0 ] && echo "test-workflow: all ok" || echo "test-workflow: $fails FAILED"
 exit $((fails > 0))

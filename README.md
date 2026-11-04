@@ -81,10 +81,10 @@ main/<pkg>/upstream.yaml   where the source comes from: repo, tag prefix, tarbal
 pkgops-repo.yaml           policy: ABIs and minimum release 15.1 (refused otherwise)
 prune.yaml                 the ONLY way a version leaves the site
 scripts/                   check, fetch-source, prebuild, build-pkg, baseline, changed, validate-apps, verify-site, site-files, bump-version, keygen,
-                           check-actions-pinned
+                           check-actions-pinned, versions-index.py (versions.json)
 .github/workflows/         build-and-publish.yml, check-updates.yml (scripts: .github/scripts/)
-tests/                     offline tests (update check, baseline cache and its verification, changed packages, source: local,
-                           workflow rules): sh tests/run.sh
+tests/                     offline tests (update check, versions.json, baseline cache and its verification, changed packages,
+                           source: local, workflow rules): sh tests/run.sh
 KEY_FINGERPRINT            sha256 of the public signing key (not secret; the publish job refuses another key, and the
                            baseline is verified with the key that has it)
 PKGOPS_VERSION             the pinned pkgops release (see the file)
@@ -104,8 +104,8 @@ A push to `master` runs `build-and-publish.yml`:
    archive). Only then one step writes the key to `$RUNNER_TEMP` with umask 077, runs `scripts/site-files.sh` (public key
    `jailops.pub`, `jailops.fingerprint`, `CNAME`, `index.html`, all derived from the secret on every run) and
    `pkgops repo --policy --prune --key`, and removes the key; an `if: always()` step removes it again. Then `pkgops verify`,
-   `scripts/verify-site.sh` (no package vanished), `pkgops archive push` (every `.pkg` into GitHub Releases), and the
-   site as the Pages artifact. Order, permissions per job and action pins are checked by `scripts/check-pkgops.sh`
+   `scripts/verify-site.sh` (no package vanished), `scripts/versions-index.py` (`versions.json`, below), `pkgops archive
+   push` (every `.pkg` into GitHub Releases), and the site as the Pages artifact. Order, permissions per job and action pins are checked by `scripts/check-pkgops.sh`
    ([docs/supply-chain.md](docs/supply-chain.md)).
 3. **deploy** job: `actions/deploy-pages`. The site is an artifact; no binary is ever in git or a `gh-pages` branch.
 
@@ -142,6 +142,47 @@ unused or when the repository's cache quota is full, which only means a cold dow
 
 Go builds use `GOTOOLCHAIN=auto` (workflow-level `env:`, and `build-pkg.sh` sets it; `check-pkgops.sh` fails without it),
 `actions/setup-go` (stable) and `actions/setup-node` 24 for the web builds.
+
+### versions.json: the published versions, for web pages
+
+Every publish also writes <https://pkg.jailops.net/versions.json>: the newest version of every package, per ABI and
+across ABIs. jailops.net reads it to show the published version of a `repo: jailops` package of the app catalog (an app
+definition's `version:` is only what the definition was written against), so a new package version appears on the site
+without anyone editing it. Anyone may read it; pkg.jailops.net is served by GitHub Pages, which answers every file with
+`Access-Control-Allow-Origin: *` and a short cache.
+
+- **Informational, not signed.** pkg(8) never reads it, and nothing here decides anything from it: the baseline, the
+  changed packages and the site verification use `pkgops-index.json` and the signed catalogs (`check-pkgops.sh` fails
+  when one of those scripts mentions `versions.json`). It is never a baseline: `pkgops fetch` does not fetch it and
+  every publish writes it anew. Trust the signed repository, not this file.
+- **Source**: the repository's own catalogs, `<ABI>/latest/packagesite.pkg` (`packagesite.yaml`, the newest version
+  of each package), read right after `pkgops verify --pubkey` verified them; every entry must also be in
+  `pkgops-index.json`, or the run fails before anything is deployed. The build job writes it from its unsigned
+  assembly too, so a pull request tests the step. By hand: `python3 scripts/versions-index.py site` (a tar that reads
+  zstd). Tests: `tests/test-versions-index.sh`.
+- **Schema 1** (a change that breaks readers raises `schema`; added keys do not):
+
+```json
+{
+ "schema": 1,
+ "generated_at": "2026-11-04T12:00:00Z",
+ "repository": "https://pkg.jailops.net/${ABI}/latest",
+ "abis": ["FreeBSD:15:aarch64", "FreeBSD:15:amd64"],
+ "packages": {
+  "isms": {
+   "version": "0.9.0",
+   "origin": "jailops/isms",
+   "comment": "the package's one-line comment",
+   "www": "the package's www",
+   "abis": {"FreeBSD:15:aarch64": "0.9.0", "FreeBSD:15:amd64": "0.9.0"}
+  }
+ }
+}
+```
+
+`version` is the highest version across the ABIs in pkg's order (epoch, version, `_revision`), and `origin`, `comment`
+and `www` are that entry's; a package's `abis` lists only the ABIs that have it, with the version each one has.
+`generated_at` is the time of the publish run (UTC).
 
 ## Add a package in 5 minutes
 
