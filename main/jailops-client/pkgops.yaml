@@ -1,5 +1,5 @@
 name: jailops-client
-version: 0.6.2
+version: 0.6.3
 origin: jailops/jailops-client
 comment: JailOps command line client and fleet tool
 desc: |

@@ -1,5 +1,5 @@
 name: jailops
-version: 0.6.2
+version: 0.6.3
 origin: jailops/jailops
 comment: JailOps, ZFS-native jail management - daemon and privileged helper
 desc: |
@@ -15,7 +15,7 @@ min_release: "15.1"
 
 deps:
   # same version as the jailops-client package in this repository (scripts/check-pkgops.sh enforces it)
-  - {name: jailops-client, origin: jailops/jailops-client, version: "0.6.2"}
+  - {name: jailops-client, origin: jailops/jailops-client, version: "0.6.3"}
   # the application catalog, so jailops app list works right after the install. It has a version of its own: pkg
   # resolves a dependency by name, so ANY jailops-apps version satisfies this line, and its version only records the
   # first one; it is not kept in step (scripts/check-pkgops.sh checks equal versions within a group only)
@@ -67,14 +67,4 @@ users:
   - {name: jailops, home: /var/db/jailops, comment: JailOps daemon}
 
 scripts:
-  post-install: |
-    # an upgrade (init has written priv.conf): only what the new version needs, not the first-install steps
-    if [ -f /usr/local/etc/jailops/priv.conf ]; then
-      echo "JailOps is upgraded. Restart it to run the new version: service jailops_priv restart && service jailopsd restart"
-      exit 0
-    fi
-    echo "JailOps is installed. Next, as root, one command:"
-    echo "  jailops-setup"
-    echo "It sets the host up (jailops-priv init, IP forwarding, the anchor lines in /etc/pf.conf, the services),"
-    echo "runs jailops doctor, offers to create the first administrator and prints the console address."
-    echo "It asks before it changes pf; jailops-setup -n shows what it would do. See man jailops-setup."
+  post-install: {file: src/packaging/pkg/post-install.sh}   # in the jailops source: a change of the text ships with the release
