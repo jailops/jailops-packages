@@ -67,14 +67,4 @@ users:
   - {name: jailops, home: /var/db/jailops, comment: JailOps daemon}
 
 scripts:
-  post-install: |
-    # an upgrade (init has written priv.conf): only what the new version needs, not the first-install steps
-    if [ -f /usr/local/etc/jailops/priv.conf ]; then
-      echo "JailOps is upgraded. Restart it to run the new version: service jailops_priv restart && service jailopsd restart"
-      exit 0
-    fi
-    echo "JailOps is installed. Next, as root, one command:"
-    echo "  jailops-setup"
-    echo "It sets the host up (jailops-priv init, IP forwarding, the anchor lines in /etc/pf.conf, the services),"
-    echo "runs jailops doctor, offers to create the first administrator and prints the console address."
-    echo "It asks before it changes pf; jailops-setup -n shows what it would do. See man jailops-setup."
+  post-install: {file: src/packaging/pkg/post-install.sh}   # in the jailops source: a change of the text ships with the release
