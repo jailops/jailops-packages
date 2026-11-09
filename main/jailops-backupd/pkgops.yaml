@@ -1,5 +1,5 @@
 name: jailops-backupd
-version: 0.6.3
+version: 0.6.4
 origin: jailops/jailops-backupd
 comment: JailOps backup node
 desc: |
