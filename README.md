@@ -81,7 +81,7 @@ main/<pkg>/upstream.yaml   where the source comes from: repo, tag prefix, tarbal
 pkgops-repo.yaml           policy: ABIs and minimum release 15.1 (refused otherwise)
 prune.yaml                 the ONLY way a version leaves the site
 scripts/                   check, fetch-source, prebuild, build-pkg, baseline, changed, validate-apps, verify-site, site-files, bump-version, keygen,
-                           check-actions-pinned, versions-index.py (versions.json)
+                           check-actions-pinned, prune-plan (the retention plan), versions-index.py (versions.json)
 .github/workflows/         build-and-publish.yml, check-updates.yml (scripts: .github/scripts/)
 tests/                     offline tests (update check, versions.json, baseline cache and its verification, changed packages,
                            source: local, workflow rules): sh tests/run.sh
@@ -135,7 +135,8 @@ The run prints `baseline summary: reused N, downloaded N, removed as stale N, by
 
 Remaining cost, honestly: the Pages artifact still contains the whole site on every deploy (GitHub Pages replaces the site as a
 whole; the published site is limited to 1 GB), so the upload grows with the history even though the downloads no longer do.
-The next step if that gets close is `prune.yaml` (old versions leave the site, the Releases archive keeps them). Moving the
+The retention policy ([docs/RETENTION.md](docs/RETENTION.md), `scripts/prune-plan.sh`) keeps the site below that limit: the newest
+three versions of every package stay, older ones leave the site through `prune.yaml` and stay in the Releases archive. Moving the
 package files out of Pages is NOT done now. The cache keys (`baseline-<PKGOPS_VERSION hash>-<run id>`, restored by prefix, so a new
 PkgOps version starts clean) and the restore/save behaviour are UNVERIFIED on GitHub; the entries are evicted after 7 days
 unused or when the repository's cache quota is full, which only means a cold download.
@@ -252,7 +253,10 @@ Pruning removes a version from GitHub Pages only; the Releases archive keeps it.
 docs/admin.md of PkgOps), or on a machine:
 
 ```sh
-pkgops prune --plan --from https://pkg.jailops.net --older-than 90d -n     # look first (-n writes nothing)
+sh scripts/prune-plan.sh --size                                            # how big the site is
+sh scripts/prune-plan.sh                                                   # the retention plan: newest 3 versions of each package (writes nothing)
+sh scripts/prune-plan.sh --write                                           # write it into prune.yaml (review, commit, merge)
+pkgops prune --plan --from https://pkg.jailops.net --older-than 90d -n     # or another selection: look first (-n writes nothing)
 pkgops prune --plan --from https://pkg.jailops.net --name hello --version 0.1.0
 git diff prune.yaml && git commit -am "Prune hello 0.1.0" && git push
 ```
