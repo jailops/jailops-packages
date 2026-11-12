@@ -1,5 +1,5 @@
 name: pkgops
-version: 0.2.1
+version: 0.3.0
 origin: jailops/pkgops
 comment: Build, sign and host native FreeBSD packages and pkg repositories
 desc: |
