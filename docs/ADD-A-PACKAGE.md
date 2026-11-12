@@ -75,7 +75,9 @@ files:
 For a daemon: `service:` generates the rc.d script and the user (see `main/isms`), or `services:` installs one from
 the source tree (see `main/jailops`: the rc.d scripts and sample configuration are taken from the fetched source, so they cannot
 drift). Config files that admins edit: `config: true`. Dependencies: one line each with name, origin and version, for example
-`- {name: git-lite, origin: devel/git, version: "2.56.0"}`; a dependency on a package of this repository uses `jailops/<name>`
+`- {name: curl, origin: ftp/curl, version: "8.0"}` (never on one flavour of a package whose flavours conflict, such as the git flavours: pkg
+dependencies are by name, so a host with another flavour is offered a replacement; check for the program at run time and say so in the
+description); a dependency on a package of this repository uses `jailops/<name>`
 and that package's current upstream version (`bump-version.sh` keeps it equal). Never generate secrets or keys at build or install time.
 
 ## 4. Check and build
