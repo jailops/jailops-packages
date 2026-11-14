@@ -66,6 +66,8 @@ services:
   - {name: jailops_priv, source: src/packaging/rc.d/jailops_priv}
   # jailops_priv REQUIRES it: at boot it reverts a host firewall change that was never confirmed (appliance mode)
   - {name: jailops_revert, source: src/packaging/rc.d/jailops_revert}
+  # jailops_priv and jailopsd are stopped after it: at host shutdown it stops the jails one after the other, each with its own graceful stop (KEYWORD: shutdown)
+  - {name: jailops_shutdown, source: src/packaging/rc.d/jailops_shutdown}
 
 dirs:
   - {path: /var/db/jailops, owner: jailops, group: jailops, mode: 0750}
