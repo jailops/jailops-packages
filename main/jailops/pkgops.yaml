@@ -1,5 +1,5 @@
 name: jailops
-version: 0.6.6_1
+version: 0.7.0
 origin: jailops/jailops
 comment: JailOps, ZFS-native jail management - daemon and privileged helper
 desc: |
@@ -15,7 +15,7 @@ min_release: "15.1"
 
 deps:
   # same version as the jailops-client package in this repository (scripts/check-pkgops.sh enforces it)
-  - {name: jailops-client, origin: jailops/jailops-client, version: "0.6.6"}
+  - {name: jailops-client, origin: jailops/jailops-client, version: "0.7.0"}
   # the application catalog, so jailops app list works right after the install. It has a version of its own: pkg
   # resolves a dependency by name, so ANY jailops-apps version satisfies this line, and its version only records the
   # first one; it is not kept in step (scripts/check-pkgops.sh checks equal versions within a group only)
@@ -66,6 +66,8 @@ services:
   - {name: jailops_priv, source: src/packaging/rc.d/jailops_priv}
   # jailops_priv REQUIRES it: at boot it reverts a host firewall change that was never confirmed (appliance mode)
   - {name: jailops_revert, source: src/packaging/rc.d/jailops_revert}
+  # jailops_priv and jailopsd are stopped after it: at host shutdown it stops the jails one after the other, each with its own graceful stop (KEYWORD: shutdown)
+  - {name: jailops_shutdown, source: src/packaging/rc.d/jailops_shutdown}
 
 dirs:
   - {path: /var/db/jailops, owner: jailops, group: jailops, mode: 0750}
