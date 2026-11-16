@@ -1,0 +1,36 @@
+# docker_auth: token authentication and authorization server for a Docker registry (docker-registry).
+# Reference of every option: https://github.com/cesanta/docker_auth/blob/main/examples/reference.yml
+#
+# This file denies everyone until you add users and rules: docker_auth refuses to start with no users
+# and no ACL, so both are listed here, empty on purpose. Nothing in this file is a secret.
+
+server:
+  # Listens on the loopback address; put a reverse proxy with TLS in front, or set
+  # certificate: and key: here to serve TLS itself (then the registry's realm is https://...).
+  addr: "127.0.0.1:5001"
+  # certificate: "/usr/local/etc/docker_auth/server.crt"
+  # key: "/usr/local/etc/docker_auth/server.key"
+
+token:
+  # Must match auth.token.issuer in the registry's configuration.
+  issuer: "docker-auth.example.com"
+  expiration: 900
+  # The key that signs the tokens; the registry trusts its certificate (auth.token.rootcertbundle).
+  # Make them once, as root:  see the message printed when the package was installed.
+  certificate: "/usr/local/etc/docker_auth/token.crt"
+  key: "/usr/local/etc/docker_auth/token.key"
+  # Uncomment for registry v3 (leave it for registry v2).
+  # disable_legacy_key_id: true
+
+# Static users. A password is a BCrypt hash:  htpasswd -nB USERNAME
+# users:
+#   "alice":
+#     password: "$2y$05$..."
+users: {}
+
+# Rules, first match wins; access is denied by default.
+# acl:
+#   - match: {account: "alice"}
+#     actions: ["*"]
+#     comment: "alice may do everything"
+acl: []

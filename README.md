@@ -52,6 +52,7 @@ do not collide with FreeBSD ports; pkg picks the highest version across all enab
 | `unisupply` | [unisupply](https://github.com/unidoc/unisupply), Go supply chain analysis (CLI). |
 | `age-plugin-sshagent` | [age](https://age-encryption.org) plugin deriving identities from ssh-agent signatures. |
 | `incus-sync` | GitOps fleet manager for Incus. On FreeBSD it is a **client of remote Linux Incus hosts**; Incus itself does not run on FreeBSD. |
+| `docker-auth` | [docker_auth](https://github.com/cesanta/docker_auth), the token authentication and authorization server of the Docker registry token protocol (works with `docker-registry` from the ports): an rc.d service (`docker_auth`), user `docker_auth`, a configuration that denies everyone until you add users and rules, and no key (the install message lists the steps). |
 
 Services are installed disabled. Enable with `sysrc NAME_enable=YES`, then `service NAME start`; each package prints its
 next steps when it is installed. The `git-lite` dependency comes from the official repository (the full `git` would pull in perl and python,

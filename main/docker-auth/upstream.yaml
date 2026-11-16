@@ -1,0 +1,10 @@
+# See main/jailops-client/upstream.yaml for the meaning of the keys.
+# The tags of cesanta/docker_auth have no prefix (1.14.0). The Go module is the subdirectory auth_server/.
+group: docker-auth
+repo: cesanta/docker_auth
+tag_prefix:
+tarball: https://github.com/${repo}/archive/refs/tags/${tag}.tar.gz
+strip_components: 1
+sha256: ea13078a2c05f7a04ba85149b412dd0947f967e61c9aba39f01aab152ef5305e
+token_env:
+prebuild:
