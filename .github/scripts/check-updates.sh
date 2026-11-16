@@ -143,8 +143,7 @@ process_group() { # GROUP REPO PREFIX PKG,PKG...
   _g=$1; _repo=$2; _pre=$3; _pk=$(echo "$4" | tr ',' ' ')
   _first=${_pk%% *}
   _cur=$(base_version "$(mf_get "$_first" version)")
-  _tenv=$(up_get "$_first" token_env); _tok=${GH_TOKEN:-}
-  if [ -n "$_tenv" ] && [ -n "$(eval "echo \"\${$_tenv:-}\"")" ]; then _tok=$(eval "echo \"\${$_tenv}\""); fi
+  _tok=$(source_token "$_first"); [ -n "$_tok" ] || _tok=${GH_TOKEN:-}
   _pend=; for _p in $_pk; do [ "$(up_get "$_p" sha256)" = PENDING ] && _pend=1; done
   STATUS=; _lat=
   if ! _lat=$(upstream_latest "$_repo" "$_pre" "$_tok"); then
