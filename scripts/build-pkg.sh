@@ -34,12 +34,13 @@ for pkg in "$@"; do
   case "$skip" in *" $pkg "*) echo "$pkg: skipped"; continue ;; esac
   note "== $pkg $(mf_get "$pkg" version)"
   sh "$REPO_ROOT/scripts/fetch-source.sh" "$pkg"
-  sh "$REPO_ROOT/scripts/prebuild.sh" "$pkg"
+  # the source token has done its job: npm, go and the build run without it
+  env -u JAILOPS_SOURCE_TOKEN sh "$REPO_ROOT/scripts/prebuild.sh" "$pkg"
   if [ -z "${SOURCE_DATE_EPOCH:-}" ]; then
     epoch=$(git -C "$REPO_ROOT" log -1 --format=%ct -- "main/$pkg" 2>/dev/null || true)
   else epoch=$SOURCE_DATE_EPOCH; fi
   [ -n "$epoch" ] || die "$pkg: no commit time for main/$pkg (not a git checkout?): set SOURCE_DATE_EPOCH"
-  SOURCE_DATE_EPOCH=$epoch pkgops build -f "$MAIN/$pkg/pkgops.yaml" --abi all -o "$OUT"
+  SOURCE_DATE_EPOCH=$epoch env -u JAILOPS_SOURCE_TOKEN pkgops build -f "$MAIN/$pkg/pkgops.yaml" --abi all -o "$OUT"
   echo "$pkg $(mf_get "$pkg" version)" >> "$OUT/built.txt"
 done
 echo "built:" >&2; cat "$OUT/built.txt" >&2

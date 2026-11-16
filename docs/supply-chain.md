@@ -73,6 +73,13 @@ gh api repos/jailops/jailops-pkgops/commits/vX.Y.Z --jq .sha > PKGOPS_VERSION
 older one the build job warns (NOT VERIFIED) and the publish job stops in the baseline step, before the key, and
 publishes nothing.
 
+## The source token
+
+`JAILOPS_SOURCE_TOKEN` (a private source repository) exists only where the source is downloaded. `build-pkg.sh` runs the
+prebuild steps (`npm ci --ignore-scripts`, the web build) and `pkgops build` without it. `token_env` in `upstream.yaml`
+must be a plain variable name (`[A-Z_][A-Z0-9_]*`); anything else stops the run before it is expanded. The checkouts in
+`check-updates.yml` do not keep the workflow token in `.git`.
+
 ## What only the GitHub settings can enforce
 
 The YAML cannot prove that any of these exist. Confirm them in the repository settings (or with the commands), and

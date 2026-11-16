@@ -51,6 +51,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false   # the scripts use the API with GH_TOKEN; nothing pushes with git
       - name: Check upstreams, open pull requests, write the summary
         run: sh .github/scripts/check-updates.sh all
 
@@ -63,5 +64,7 @@ jobs:
       STRICT: ${{ inputs.strict && '1' || '' }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Package names against the official FreeBSD repository
         run: sh .github/scripts/check-updates.sh collisions

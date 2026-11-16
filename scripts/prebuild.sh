@@ -17,7 +17,7 @@ export GOTOOLCHAIN="${GOTOOLCHAIN:-auto}"
 [ "${1:-}" = "--list" ] && { echo "jailops-web:host jailops-web:backup isms-web jailops-share"; exit 0; }
 [ $# -ge 1 ] || die "usage: prebuild.sh PKG..."
 
-npm_ci() { npm ci ${NPM_CI_ARGS:-}; }
+npm_ci() { npm ci --ignore-scripts ${NPM_CI_ARGS:-}; }
 
 for pkg in "$@"; do
   steps=$(up_get "$pkg" prebuild)

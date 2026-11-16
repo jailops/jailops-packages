@@ -20,6 +20,17 @@ pkg_dir() { echo "$MAIN/$1"; }
 mf_get() { yget "$2" "$MAIN/$1/pkgops.yaml"; }
 up_get() { yget "$2" "$MAIN/$1/upstream.yaml"; }
 
+# source_token PKG: the secret named by token_env in upstream.yaml (empty when none). The name is checked before it is
+# expanded, so upstream.yaml can only ever pick an environment variable, never run anything.
+source_token() {
+  _stn=$(up_get "$1" token_env)
+  [ -n "$_stn" ] || return 0
+  case "$_stn" in
+    [!A-Z_]*|*[!A-Z0-9_]*) die "$1: token_env '$_stn' is not an environment variable name ([A-Z_][A-Z0-9_]*)" ;;
+  esac
+  eval "printf %s \"\${$_stn:-}\""
+}
+
 all_pkgs() {
   for d in "$MAIN"/*/; do
     [ -f "${d}pkgops.yaml" ] && basename "$d"

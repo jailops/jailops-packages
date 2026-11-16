@@ -17,8 +17,7 @@ PRINT_SHA=
 
 download() { # download PKG DEST
   url=$(tarball_url "$1")
-  token_env=$(up_get "$1" token_env)
-  token=; [ -n "$token_env" ] && token=$(eval "echo \"\${$token_env:-}\"")
+  token=$(source_token "$1")
   note "$1: downloading $url"
   if [ -n "$token" ]; then
     # a token is only ever sent to GitHub, whatever upstream.yaml says (a changed url must not leak it)
