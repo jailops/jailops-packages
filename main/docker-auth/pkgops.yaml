@@ -1,0 +1,84 @@
+name: docker-auth
+version: 1.14.0
+origin: jailops/docker-auth
+comment: Token authentication and authorization server for a Docker registry
+desc: |
+  docker_auth (cesanta/docker_auth) is the token authentication and
+  authorization server of the Docker registry token protocol: the registry
+  sends clients to it, it checks who they are (static users, LDAP, OIDC,
+  GitHub, GitLab, an external program or a plugin) and signs a token that
+  lists what they may do. It works with docker-registry from the FreeBSD ports.
+  The package installs a configuration that denies everyone, a service that is
+  not enabled, and no keys: the install message lists the steps.
+www: https://github.com/cesanta/docker_auth
+maintainer: packages@jailops.net
+license: APACHE20
+categories: [security, net]
+abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]
+min_release: "15.1"
+
+deps:
+  # the root certificates for the LDAP, OIDC, GitHub and GitLab back ends (outbound TLS)
+  - {name: ca_root_nss, origin: security/ca_root_nss, version: "3.132"}
+
+build:
+  type: go
+  dir: src/auth_server
+  package: .
+  output: build/${ARCH}/docker_auth
+  # the Makefile of the project gets the version and the build id from git (gen_version.go); the tarball has no git
+  ldflags: -s -w -X main.Version=${VERSION} -X main.BuildID=release
+
+files:
+  - source: build/${ARCH}/docker_auth
+    destination: bin/docker_auth
+  # always refreshed reference copy ...
+  - source: auth_config.yml.sample
+    destination: etc/docker_auth/auth_config.yml.sample
+  # ... and the live file: kept on upgrade (a modified copy stays, the new one lands as .pkgnew)
+  - source: auth_config.yml.sample
+    destination: etc/docker_auth/auth_config.yml
+    config: true
+    mode: 0640
+    owner: root
+    group: docker_auth
+  - source: src/examples/reference.yml
+    destination: share/examples/docker_auth/reference.yml
+  - source: src/examples/ldap_auth.yml
+    destination: share/examples/docker_auth/ldap_auth.yml
+  - source: src/README.md
+    destination: share/doc/docker_auth/README.md
+  - source: src/LICENSE
+    destination: share/doc/docker_auth/LICENSE
+
+service:
+  name: docker_auth
+  command: /usr/local/bin/docker_auth
+  args: [-logtostderr, /usr/local/etc/docker_auth/auth_config.yml]
+  user: docker_auth
+  restart: true
+  restart_delay: 5
+  log:
+    file: /var/log/docker_auth.log
+    rotate: 7
+
+dirs:
+  - {path: /var/db/docker_auth, owner: docker_auth, group: docker_auth, mode: 0750}
+
+users:
+  - {name: docker_auth, home: /var/db/docker_auth, comment: docker_auth server}
+
+scripts:
+  post-install: |
+    cat <<'MSG'
+    docker_auth is installed but NOT enabled, and no key exists yet. Do these steps once, as root:
+      1. Make the key that signs the tokens, and give the service the right to read it:
+           openssl req -x509 -newkey rsa:4096 -nodes -sha256 -days 3650 -subj "/CN=docker-auth.example.com" \
+             -keyout /usr/local/etc/docker_auth/token.key -out /usr/local/etc/docker_auth/token.crt
+           chgrp docker_auth /usr/local/etc/docker_auth/token.key && chmod 640 /usr/local/etc/docker_auth/token.key
+      2. Edit /usr/local/etc/docker_auth/auth_config.yml: token.issuer, the users (htpasswd -nB NAME) and the acl.
+      3. Point the registry at it: auth.token.realm, service, issuer and rootcertbundle (token.crt) in its configuration.
+      4. Start:  sysrc docker_auth_enable=YES && service docker_auth start
+    The server listens on 127.0.0.1:5001; put a TLS reverse proxy in front or set server.certificate and server.key.
+    Reference: /usr/local/etc/docker_auth/auth_config.yml.sample and /usr/local/share/examples/docker_auth/reference.yml
+    MSG
