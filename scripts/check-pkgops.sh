@@ -225,6 +225,10 @@ if [ -d "$wf" ]; then
       awk -v j="  $j:" '$0 == j {inj=1; next} /^  [a-z_-]+:[[:space:]]*$/ {inj=0} inj && /^    permissions:/ {ok=1} END {exit ok?0:1}' "$bp" ||
         fail "build-and-publish.yml: job '$j' has no permissions: block"
     done
+    # a job whose needs chain holds a skipped job (build-private is skipped without a token_env) is skipped itself
+    # unless it has a status check function: deploy must ask for the result of publish with always()
+    awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "deploy:" && /^    if:.*always\(\).*needs\.publish\.result == .success./ {ok=1} END {exit ok?0:1}' "$bp" ||
+      fail "build-and-publish.yml: the job deploy must say 'if: always() && needs.publish.result == success' (a skipped build-private would skip it)"
   fi
 fi
 # versions.json: written from the catalogs `pkgops verify --pubkey` has just verified (publish job), and never an input
