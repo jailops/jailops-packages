@@ -6,8 +6,6 @@ Signed FreeBSD packages for JailOps and a few related tools, built with [PkgOps]
 
 - **FreeBSD 15.1 and later only**, `amd64` and `aarch64` (`FreeBSD:15:amd64`, `FreeBSD:15:aarch64`). Every package
   declares a minimum release of 15.1; pkg itself refuses it on 15.0.
-- Repository status: **UNVERIFIED on GitHub** until the one-time setup below is done and the first run succeeded.
-  The packages and the repository layout were verified with real pkg 2.8.4 on FreeBSD 15.1 (see "Verification").
 
 ## Use it
 
@@ -139,7 +137,7 @@ whole; the published site is limited to 1 GB), so the upload grows with the hist
 The retention policy ([docs/RETENTION.md](docs/RETENTION.md), `scripts/prune-plan.sh`) keeps the site below that limit: the newest
 three versions of every package stay, older ones leave the site through `prune.yaml` and stay in the Releases archive. Moving the
 package files out of Pages is NOT done now. The cache keys (`baseline-<PKGOPS_VERSION hash>-<run id>`, restored by prefix, so a new
-PkgOps version starts clean) and the restore/save behaviour are UNVERIFIED on GitHub; the entries are evicted after 7 days
+PkgOps version starts clean); the entries are evicted after 7 days
 unused or when the repository's cache quota is full, which only means a cold download.
 
 Go builds use `GOTOOLCHAIN=auto` (workflow-level `env:`, and `build-pkg.sh` sets it; `check-pkgops.sh` fails without it),
@@ -265,7 +263,7 @@ git diff prune.yaml && git commit -am "Prune hello 0.1.0" && git push
 `prune.yaml` is the only way things leave the site; pruning the newest version of a package needs `force: true`.
 Deleting from the archive is a separate, confirmed command (`pkgops archive prune ... --confirm "delete from archive"`).
 
-## One-time manual setup (all UNVERIFIED: no GitHub or Cloudflare account was used to write this)
+## One-time setup
 
 1. Create the repository `github.com/jailops/jailops-packages`, default branch `master`; push this tree.
 2. Settings, Pages: Source = **GitHub Actions**. Custom domain `pkg.jailops.net` (the workflow also writes `CNAME`); enforce HTTPS
@@ -308,32 +306,6 @@ pkgops verify /tmp/site/FreeBSD:15:amd64/latest --pubkey /tmp/t/t.pub
 Environment: `SRC_<PKG>` (package name upper-cased, `-` to `_`), `JAILOPS_SOURCE_TOKEN`, `DIST_DIR`, `SOURCE_DATE_EPOCH`,
 `NPM_CI_ARGS`, `BUILD_STRICT`, `BASELINE_FIRST_RUN`, `NO_DOWNLOAD` (bump), `JAILOPS` (validate-apps). Tools: a POSIX sh, curl, tar, jq (or python3), Go, Node 24 for the web builds.
 `*.key`, `*.pem`, `site/`, `dist/`, `main/*/src/`, `main/*/build/` are in `.gitignore`; `check-pkgops.sh` fails if key material is in the tree.
-
-## Verification
-
-Done locally (FreeBSD 15.1-RELEASE arm64 with pkg 2.8.4 as the target, a throwaway signing key):
-
-- all eight manifests build with `pkgops build --abi all`; seven were built from real sources (isms was only
-  manifest-tested with a labelled placeholder binary: its source build, a Node/npm build of downloaded code, was not run here);
-- `pkgops repo` with the policy and prune files, `pkgops verify` (signed), `pkgops inspect`: every package carries the
-  `FreeBSD_version: 1501000` annotation;
-- real `pkg` in a private root with `pkg -r`: `pkg update`, `pkg install jailops jailops-backupd pkgops age-plugin-sshagent incus-sync unisupply`
-  (41 packages with git and its dependencies from the official repository), users and groups created, directories, rc.d scripts, `pkg check -s`;
-  a 15.0 userland (`OSVERSION=1500000`) is refused by `pkg update`;
-- the baseline cache against a local static site (`tests/test-baseline.sh`: cold, warm, added, pruned, corrupted, foreign files, first run, failure),
-  and its verification against the signing key (a package and its hash changed on the site, another key, a re-signed site,
-  rollback, an older pkgops);
-- the workflow rules (`tests/test-workflow.sh`: the key only after every download, its removal, permissions per job, action pins);
-- `jailops-apps` 0.4.0 built from `main/jailops-apps` (`source: local`) with `scripts/build-pkg.sh` and pkgops, both ABIs,
-  12 files; `scripts/validate-apps.sh` with a client that has `app validate` (valid; an invalid definition fails) and with
-  one that has not (NOT VALIDATED warning, exit 0); `tests/test-local.sh`;
-- the scripts against a local fake git repository and a local HTTP site (changed packages, baseline, bump, pin, sha256 mismatch,
-  first run, key fingerprint guard, negative checks of `check-pkgops.sh`).
-
-**UNVERIFIED**: everything on GitHub (workflows, Pages incl. `FreeBSD:15:amd64` directory names with colons, deploy-pages,
-`pkgops archive push`, the Contents-API commit helper, PR/dispatch/label/supersede behaviour of `check-updates.yml`, the monthly packagesite.pkg download), Cloudflare, the pkgops
-`v0.1.0` release and install script download path, the private `jailops/jailops` source (no tag, no token yet), the isms
-FreeBSD parts (service, paths, user, message: the build recipe itself is the production APKBUILD's), a real boot with the rc.d scripts, actionlint (not available).
 
 ## Open decisions
 
