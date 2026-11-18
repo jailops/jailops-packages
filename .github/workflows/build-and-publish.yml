@@ -393,13 +393,9 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-pkgops
-
+      # First, before any file of the repository is used: which run, and the commit it was built from.
       - name: The run is a successful publish run of master
+        id: run
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ inputs.deploy_run_id }}
@@ -413,6 +409,19 @@ jobs:
           esac
           pub=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | select(.name == "publish") | .conclusion')
           [ "$pub" = success ] || { echo "::error::the job publish of run $RUN_ID did not succeed ($pub)"; exit 1; }
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq .head_sha)
+          case "$sha" in *[!0-9a-f]*|'') echo "::error::run $RUN_ID has no commit ($sha)"; exit 1 ;; esac
+          [ "${#sha}" = 40 ] || { echo "::error::run $RUN_ID has no commit ($sha)"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      # The manifests, KEY_FINGERPRINT, prune.yaml and the scripts of the verification are those of the commit the site
+      # was built from: the artifact is compared with the repository state it was made from, not with current master.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+        with:
+          ref: ${{ steps.run.outputs.sha }}
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-pkgops
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333   # v8.0.2
         with:

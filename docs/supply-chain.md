@@ -106,8 +106,10 @@ then publish again:
     gh workflow run build-and-publish.yml
 
 `deploy_run_id` runs only the job `redeploy`. It accepts a completed push or dispatch run of this workflow on master
-whose job `publish` succeeded, checks `site/jailops.pub` against `KEY_FINGERPRINT`, verifies the signed catalogs, the site
-and the archive, and deploys exactly those bytes: no build, no signing, no key. The check
+whose job `publish` succeeded, and checks out the commit that run was built from: the manifests, `KEY_FINGERPRINT`,
+`prune.yaml`, the scripts and the pkgops pin of the verification are those of that commit, because the site is compared with
+the repository state it was made from, not with current master. It checks `site/jailops.pub` against `KEY_FINGERPRINT`,
+verifies the signed catalogs, the site and the archive, and deploys exactly those bytes: no build, no signing, no key. The check
 `scripts/check-pkgops.sh` requires `deploy` to run when `publish` succeeded (`if: always() && needs.publish.result ==
 'success'`): a job whose `needs` chain holds a skipped job, here `build-private` without a `token_env`, is skipped
 unless it has a status check function.

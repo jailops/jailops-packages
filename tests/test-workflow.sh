@@ -35,6 +35,13 @@ check; eq "deploy without always(): refused" 1 $?
 has "deploy without always(): says why" "the job deploy must say 'if: always() && needs.publish.result == success'" "$T/check.out"
 reset
 
+# the recovery job checking out current master instead of the commit of the run (the site of an older commit then misses
+# the packages of the newer manifests)
+edit 's = s.replace("          ref: ${{ steps.run.outputs.sha }}\n", "")'
+check; eq "redeploy without the run's commit: refused" 1 $?
+has "redeploy without the run's commit: says why" "the job redeploy must check out" "$T/check.out"
+reset
+
 # the key written before the downloads (the order the workflow had before)
 edit '
 a = s.index("      - uses: actions/download-artifact@")

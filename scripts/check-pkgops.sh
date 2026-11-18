@@ -229,6 +229,9 @@ if [ -d "$wf" ]; then
     # unless it has a status check function: deploy must ask for the result of publish with always()
     awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "deploy:" && /^    if:.*always\(\).*needs\.publish\.result == .success./ {ok=1} END {exit ok?0:1}' "$bp" ||
       fail "build-and-publish.yml: the job deploy must say 'if: always() && needs.publish.result == success' (a skipped build-private would skip it)"
+    # the recovery job verifies the artifact of an earlier run against the commit that run was built from
+    awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "redeploy:" && /^          ref: \$\{\{ steps\.run\.outputs\.sha \}\}/ {ok=1} END {exit ok?0:1}' "$bp" ||
+      fail "build-and-publish.yml: the job redeploy must check out 'ref: \${{ steps.run.outputs.sha }}' (the commit of the run it redeploys)"
   fi
 fi
 # versions.json: written from the catalogs `pkgops verify --pubkey` has just verified (publish job), and never an input
