@@ -77,3 +77,4 @@ users:
 
 scripts:
   post-install: {file: src/packaging/pkg/post-install.sh}   # in the jailops source: a change of the text ships with the release
+  pre-deinstall: {file: src/packaging/pkg/pre-deinstall.sh}   # removes the unbound file and the lo0 addresses of the helper on a removal (not on an upgrade)
