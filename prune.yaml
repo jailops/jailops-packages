@@ -1,17 +1,977 @@
-# Prune manifest: published files the next publish leaves OUT of the site (GitHub Pages).
-#
-# This file is the ONLY way anything leaves the site. Nothing is ever deleted automatically (no --keep, no
-# --replace). Change it by hand or through the PkgOps admin UI, in a reviewed commit; the next publish applies it.
-# Pruning never touches the permanent archive in GitHub Releases (that needs `pkgops archive prune`, separate and confirmed).
-#
-# Make entries with:  pkgops prune --plan --from https://pkg.jailops.net --older-than 90d     (writes nothing but a plan; -n for a dry run)
-# An entry looks like:
-#   - abi: FreeBSD:15:amd64
-#     name: hello
-#     version: "0.1.0"
-#     reason: superseded            # one line
-#     force: false                  # true is needed to prune the newest version of a package
-#     requested_by: alice@example.com
-#     requested: "2026-10-26T11:00:00Z"
+# Prune manifest: published package files the next build leaves out of the site.
+# Written by `pkgops prune --plan` or the admin UI; review it, commit it, the publish workflow applies it.
+# Nothing is deleted from the archive (GitHub Releases) by this file.
 schema: 1
-entries: []
+entries:
+    - abi: FreeBSD:15:aarch64
+      name: isms
+      version: 0.8.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.1.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.2.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.2.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.3.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.4.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.5.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.5.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.6.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.6.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.6.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.6.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.6.4
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.6.5
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.6.6
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.6.6_1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.7.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.7.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.7.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.7.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.8.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.8.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.8.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.8.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops
+      version: 0.8.4
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-apps
+      version: 0.3.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-apps
+      version: 0.4.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-apps
+      version: 0.4.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.1.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.2.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.2.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.3.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.4.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.5.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.5.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.6.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.6.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.6.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.6.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.6.4
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.6.5
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.6.6
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.7.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.7.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.7.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.7.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.8.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.8.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.8.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.8.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-backupd
+      version: 0.8.4
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.1.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.2.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.2.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.3.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.4.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.5.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.5.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.6.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.6.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.6.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.6.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.6.4
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.6.5
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.6.6
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.6.6_1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.7.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.7.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.7.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.7.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.8.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.8.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.8.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.8.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: jailops-client
+      version: 0.8.4
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: pkgops
+      version: 0.1.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: pkgops
+      version: 0.2.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: pkgops
+      version: 0.2.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: pkgops
+      version: 0.3.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: unisupply
+      version: 0.7.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:aarch64
+      name: unisupply
+      version: 0.8.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: isms
+      version: 0.8.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.1.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.2.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.2.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.3.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.4.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.5.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.5.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.6.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.6.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.6.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.6.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.6.4
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.6.5
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.6.6
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.6.6_1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.7.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.7.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.7.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.7.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.8.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.8.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.8.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.8.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops
+      version: 0.8.4
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-apps
+      version: 0.3.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-apps
+      version: 0.4.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-apps
+      version: 0.4.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.1.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.2.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.2.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.3.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.4.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.5.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.5.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.6.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.6.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.6.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.6.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.6.4
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.6.5
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.6.6
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.7.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.7.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.7.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.7.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.8.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.8.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.8.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.8.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-backupd
+      version: 0.8.4
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.1.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.2.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.2.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.3.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.4.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.5.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.5.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.6.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.6.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.6.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.6.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.6.4
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.6.5
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.6.6
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.6.6_1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.7.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.7.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.7.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.7.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.8.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.8.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.8.2
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.8.3
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: jailops-client
+      version: 0.8.4
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: pkgops
+      version: 0.1.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: pkgops
+      version: 0.2.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: pkgops
+      version: 0.2.1
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: pkgops
+      version: 0.3.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: unisupply
+      version: 0.7.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"
+    - abi: FreeBSD:15:amd64
+      name: unisupply
+      version: 0.8.0
+      reason: 'outside the retention policy: only the newest version of each package is kept'
+      requested_by: maintainers
+      requested: "2026-11-18T23:11:16Z"

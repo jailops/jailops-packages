@@ -106,6 +106,7 @@ hasnt "local source: no upstream request" "catalog" "$L"
 hasnt "local source: no request without a repository" "/repos//" "$L"
 has "summary: pkgops line" "\`PKGOPS_VERSION\`: \`v0.1.0\`, latest release of jailops/jailops-pkgops: v0.2.0, bump PR opened" "$S"
 has "summary: publish age" "Last publish: 3 days ago" "$S"
+has "summary: site size" "Site size: 0 MB (GitHub Pages publishes at most about 1 GB)" "$S"
 has "summary: unreachable count" "1 upstream(s) unreachable." "$S"
 want=$(printf 'tarball v1.4.0' | sha256sum | cut -d' ' -f1)
 has "sha256 of the tarball committed" "sha256: $want" "$T/committed/bump-foo-1.4.0/main/foo/upstream.yaml"
@@ -164,6 +165,12 @@ has "strict: summary still written" "upstream unreachable" "$S"
 : > "$S"; runit SITE_URL="$URL/nowhere" > "$T/out5" 2>&1; rc=$?
 eq "no site: exit 0" 0 "$rc"
 has "no site: message" "Last publish: unknown" "$S"
+
+# a site near the limit says how to prune
+printf '{"schema":1,"generated":"%s","packages":[{"name":"a","size":600000000},{"name":"b","size":300000000}],"pruned":[]}' "$GEN" > "$FIX/pkgops-index.json"
+: > "$S"; runit > "$T/out5b" 2>&1; rc=$?
+eq "big site: exit 0" 0 "$rc"
+has "big site: size and the command" "Site size: 900 MB of the 1 GB that GitHub Pages publishes: prune with \`sh scripts/prune-plan.sh --write\`" "$S"
 
 # collisions
 printf '{"name":"git-lite"}\n{"name":"baz"}\n' > "$T/ps.yaml"

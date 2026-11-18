@@ -1,8 +1,8 @@
 #!/bin/sh
 # prune-plan.sh [--write] [--size]
 #
-# The retention policy of the site (docs/RETENTION.md): keep the newest KEEP versions of every package and ABI (default 3: the
-# newest and the two before it); everything older goes into prune.yaml, and the next publish leaves it out of the site.
+# The retention policy of the site (docs/RETENTION.md): keep the newest KEEP versions of every package and ABI (default 1: the
+# version clients install); everything older goes into prune.yaml, and the next publish leaves it out of the site.
 #   (no option)  print the plan and the bytes it frees; writes nothing
 #   --write      write the plan into prune.yaml (then review it, commit it in a pull request, let the publish apply it)
 #   --size       print the size of the published site (from its index) and stop
@@ -13,7 +13,7 @@ set -eu
 . "$(dirname "$0")/lib.sh"
 
 SITE=${SITE:-https://pkg.jailops.net}
-KEEP=${KEEP:-3}
+KEEP=${KEEP:-1}
 PKGOPS=${PKGOPS:-pkgops}
 mode=plan
 case "${1:-}" in
@@ -39,5 +39,7 @@ flag=-n
 [ "$mode" = write ] && flag=
 cd "$REPO_ROOT"
 # shellcheck disable=SC2086
+what="the newest $KEEP versions of each package are kept"
+[ "$KEEP" = 1 ] && what="only the newest version of each package is kept"
 "$PKGOPS" prune --plan --from "$SITE" --manifest prune.yaml --keep "$KEEP" $flag --by maintainers \
-  --reason "outside the retention policy: the newest $KEEP versions of each package are kept"
+  --reason "outside the retention policy: $what"
