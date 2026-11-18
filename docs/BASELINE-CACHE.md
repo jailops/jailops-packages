@@ -15,7 +15,7 @@ The run prints `baseline summary: reused N, downloaded N, removed as stale N, by
 
 Remaining cost, honestly: the Pages artifact still contains the whole site on every deploy (GitHub Pages replaces the site as a
 whole; the published site is limited to 1 GB), so the upload grows with the history even though the downloads no longer do.
-The next step if that gets close is `prune.yaml` (old versions leave the site, the Releases archive keeps them). Moving the
+The retention policy keeps it small: the publish drops every version but the newest two from the site in the same run, and the Releases archive keeps them (docs/RETENTION.md). Moving the
 package files out of Pages is NOT done now. The cache keys (`baseline-<PKGOPS_VERSION hash>-<run id>`, restored by prefix, so a new
 PkgOps version starts clean); the entries are evicted after 7 days
 unused or when the repository's cache quota is full, which only means a cold download.
