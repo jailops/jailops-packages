@@ -9,15 +9,20 @@ tests the checks).
 `build-and-publish.yml`, job `publish` (master only, environment `signing`):
 
 1. checkout (`persist-credentials: false`), install the pinned pkgops (`.github/actions/setup-pkgops`);
-2. download the built packages (`actions/download-artifact`), restore the baseline cache (`actions/cache/restore`);
+2. download the built packages (`actions/download-artifact`) and check them against the build records
+   (`scripts/verify-build-record.sh`: every file is in a record with the size and sha256 it had when it was built, from
+   this commit, at the version of its manifest), restore the baseline cache (`actions/cache/restore`);
 3. `scripts/baseline.sh`: the published site's public key is accepted only with the sha256 in `KEY_FINGERPRINT`, and
    `pkgops fetch --pubkey` verifies the site's signed catalogs before it takes anything (docs/BASELINE-CACHE.md);
 4. `pkgops verify-archive`: the baseline agrees with the GitHub Releases archive (older versions, which no signature
    covers, and versions that were published and are now missing);
+   `scripts/expect-packages.sh`: every package of `main/`, at its version, for every ABI, is in the baseline or was built
+   now, and a file built now has the bytes of the file that is already published;
 5. **Sign**: the only step with the key on disk. It writes `$RUNNER_TEMP/pkg-repo.key` with umask 077, runs
    `scripts/site-files.sh` (public key, fingerprint) and `pkgops repo --key`, and removes the key when it ends;
 6. **Remove the signing key** (`if: always()`): removes it again, whatever happened;
-7. verify the signed repository, write `versions.json` from the verified catalogs (informational, unsigned; never an
+7. verify the signed repository (`scripts/verify-site.sh` with `VERIFY_SITE_STRICT=1`: a package that is not ready is
+   a failure too), write `versions.json` from the verified catalogs (informational, unsigned; never an
    input of a later run: README, "versions.json"), archive push, refresh the cache, upload the Pages artifact, save
    the cache.
 
@@ -34,7 +39,8 @@ system); the runner is a fresh VM per job and is discarded after it.
 
 | job | permissions | secrets |
 |---|---|---|
-| `build` | `contents: read` | `JAILOPS_SOURCE_TOKEN` (source download; optional) |
+| `build` | `contents: read` | none |
+| `build-private` | `contents: read` | `JAILOPS_SOURCE_TOKEN` (environment `source`, master only) |
 | `publish` | `contents: write` (one release per package version) | `PKG_REPO_KEY` (environment `signing`) |
 | `deploy` | `pages: write`, `id-token: write` | none |
 
@@ -42,14 +48,12 @@ system); the runner is a fresh VM per job and is discarded after it.
 
 ## Actions in use
 
-All are first party (`actions/*`, GitHub's own) and stay on their major tags:
+Every action is pinned to a full commit SHA, GitHub's own included, with the version it was at in a comment:
 `actions/checkout`, `actions/setup-go`, `actions/setup-node`, `actions/cache/restore`, `actions/cache/save`,
 `actions/upload-artifact`, `actions/download-artifact`, `actions/upload-pages-artifact`, `actions/deploy-pages`, plus the
-local `./.github/actions/setup-pkgops`. The majors were not compared with the newest releases when this was written (no
-network): `gh api repos/actions/checkout/releases/latest --jq .tag_name`, and so on.
-
-There is no third-party action. `scripts/check-actions-pinned.sh` keeps it that way unless one is pinned to a full
-commit SHA: `ACTIONS_PIN_ENFORCE: "1"` in the workflow-level `env:` makes it fail; `"0"` would only warn. To pin one:
+local `./.github/actions/setup-pkgops` (no pin needed). A tag can be moved by whoever owns the action; a SHA cannot.
+`scripts/check-actions-pinned.sh` fails on any action that is not pinned: `ACTIONS_PIN_ENFORCE: "1"` in the workflow-level
+`env:` makes it fail; `"0"` would only warn. To pin one, or to move a pin to a newer release:
 
 ```sh
 gh api repos/OWNER/REPO/commits/TAG --jq .sha          # the commit the tag points at (annotated tags resolved)
@@ -75,10 +79,15 @@ publishes nothing.
 
 ## The source token
 
-`JAILOPS_SOURCE_TOKEN` (a private source repository) exists only where the source is downloaded. `build-pkg.sh` runs the
-prebuild steps (`npm ci --ignore-scripts`, the web build) and `pkgops build` without it. `token_env` in `upstream.yaml`
-must be a plain variable name (`[A-Z_][A-Z0-9_]*`); anything else stops the run before it is expanded. The checkouts in
-`check-updates.yml` do not keep the workflow token in `.git`.
+`JAILOPS_SOURCE_TOKEN` (a private source repository) exists in one job only: `build-private`, for master, with the
+Environment `source`. The job a pull request runs (`build`) has no secret and builds the packages whose `upstream.yaml` has
+an empty `token_env`; a package with a `token_env` is built by `build-private` on master (a pull request prints a notice
+that it was not built). A pull request can change a script and a workflow, so a secret the job could read would be a
+secret the pull request could read: only an Environment limited to `master` keeps it out. `build-pkg.sh` runs the prebuild
+steps (`npm ci --ignore-scripts`, the web build) and `pkgops build` without the token even there. `token_env` is empty or
+`JAILOPS_SOURCE_TOKEN`; the source of `jailops`, which `scripts/validate-apps.sh` builds in `build`, has an empty one.
+`check-pkgops.sh` checks all of this. `token_env` must be a plain variable name (`[A-Z_][A-Z0-9_]*`); anything else stops
+the run before it is expanded. The checkouts in `check-updates.yml` do not keep the workflow token in `.git`.
 
 ## What only the GitHub settings can enforce
 
@@ -93,12 +102,15 @@ again after any change of owners or admins:
    - Required reviewers: optional. With them, every publish waits for an approval (and "Prevent self-review" stops the
      pusher from approving their own run). Without them, anyone who can push to `master` publishes.
    - `gh api repos/jailops/jailops-packages/environments/signing --jq '{protection_rules, deployment_branch_policy}'`
-2. **Environment `github-pages`**: deployment branches `master` only (GitHub creates it with that rule; check it).
-3. **`master`**: a branch protection rule or ruleset (no force push, no deletion, pull requests with review if more than
+2. **Environment `source`** (only when a package has a `token_env`): deployment branches **`master` only**, and the
+   secret `JAILOPS_SOURCE_TOKEN` there with read access to that source repository only, not a repository secret.
+   `gh api repos/jailops/jailops-packages/environments/source --jq '{protection_rules, deployment_branch_policy}'`
+3. **Environment `github-pages`**: deployment branches `master` only (GitHub creates it with that rule; check it).
+4. **`master`**: a branch protection rule or ruleset (no force push, no deletion, pull requests with review if more than
    one person can push). Anyone who can push to `master` can change this workflow and so use the key in the next run;
    the environment rules do not stop that. `gh api repos/jailops/jailops-packages/branches/master/protection` (404: none)
    and `gh api repos/jailops/jailops-packages/rulesets`.
-4. **Actions settings**: Workflow permissions "Read repository contents" (the jobs ask for more where they need it);
+5. **Actions settings**: Workflow permissions "Read repository contents" (the jobs ask for more where they need it);
    fork pull requests need approval before workflows run.
    `gh api repos/jailops/jailops-packages/actions/permissions/workflow`.
-5. Who is an admin: admins can change every rule above. Keep that list short.
+6. Who is an admin: admins can change every rule above. Keep that list short.

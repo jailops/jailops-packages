@@ -31,7 +31,7 @@ check; eq "the workflow passes" 0 $?
 
 # the key written before the downloads (the order the workflow had before)
 edit '
-a = s.index("      - uses: actions/download-artifact@v8")
+a = s.index("      - uses: actions/download-artifact@")
 k = s.index("      # The only step with the key on disk")
 b = s.index("      - name: Remove the signing key")
 c = s.index("      - name: Verify the signed repository")
@@ -55,19 +55,49 @@ edit 's = s.replace("permissions: {}\n", "permissions:\n  contents: write\n")'
 check; eq "workflow-wide permissions: refused" 1 $?
 reset
 
-# third-party actions: unpinned fails, pinned passes, first-party / local / docker are fine
-edit 's = s.replace("      - uses: actions/upload-pages-artifact@v3", "      - uses: \"example/tool@v2\"   # a tag\n      - uses: actions/upload-pages-artifact@v3")'
+# actions: every one is pinned to a commit SHA, GitHub's own included; local, docker:// and a listed owner are fine
+edit 's = s.replace("      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1", "      - uses: \"example/tool@v2\"   # a tag\n      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1")'
 check; eq "unpinned third-party action: refused" 1 $?
 has "unpinned: the command to pin it" "gh api repos/example/tool/commits/v2 --jq .sha" "$T/check.out"
 ACTIONS_PIN_ENFORCE=0 sh "$R/scripts/check-actions-pinned.sh" "$R/.github" > "$T/pin.out" 2>&1; eq "ACTIONS_PIN_ENFORCE=0: only warns" 0 $?
 has "warn mode: says so" "warning only until ACTIONS_PIN_ENFORCE=1" "$T/pin.out"
 reset
-edit 's = s.replace("      - uses: actions/upload-pages-artifact@v3", "      - uses: example/tool/sub@0123456789abcdef0123456789abcdef01234567 # v2.1.0\n      - uses: github/codeql-action/init@v3\n      - uses: docker://alpine:3\n      - uses: actions/upload-pages-artifact@v3")'
-check; eq "pinned third-party, first-party, docker: accepted" 0 $?
+edit 's = s.replace("      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1", "      - uses: actions/upload-pages-artifact@v3\n      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1")'
+check; eq "an action of actions/ on a tag: refused" 1 $?
+has "the first-party tag is named" "actions/upload-pages-artifact@v3 is not pinned" "$T/check.out"
 reset
-edit 's = s.replace("      - uses: actions/upload-pages-artifact@v3", "      - uses: example/tool@0123456789abcdef\n      - uses: actions/upload-pages-artifact@v3")'
+edit 's = s.replace("      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1", "      - uses: example/tool/sub@0123456789abcdef0123456789abcdef01234567 # v2.1.0\n      - uses: docker://alpine:3\n      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1")'
+check; eq "pinned third-party and docker: accepted" 0 $?
+reset
+edit 's = s.replace("      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1", "      - uses: github/codeql-action/init@v3\n      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1")'
+ACTIONS_FIRST_PARTY="github/" sh "$R/scripts/check-actions-pinned.sh" "$R/.github" > "$T/pin.out" 2>&1; eq "a listed owner (ACTIONS_FIRST_PARTY) may stay on a tag" 0 $?
+reset
+edit 's = s.replace("      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1", "      - uses: example/tool@0123456789abcdef\n      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1")'
 check; eq "a short SHA is not a pin" 1 $?
 reset
+
+# the source token: only in build-private (master only, with an Environment), never in the job a pull request runs
+check; eq "the workflow passes" 0 $?
+edit 's = s.replace("          BUILD_LABEL: build\n", "          BUILD_LABEL: build\n          JAILOPS_SOURCE_TOKEN: ${{ secrets.JAILOPS_SOURCE_TOKEN }}\n")'
+check; eq "the source token in the build job: refused" 1 $?
+has "token twice: says so" "secrets.JAILOPS_SOURCE_TOKEN must appear exactly once" "$T/check.out"
+reset
+edit 's = s.replace("    environment: source\n", "")'
+check; eq "build-private without its Environment: refused" 1 $?
+has "no Environment: says so" "build-private must say 'environment: source'" "$T/check.out"
+reset
+edit 's = s.replace("    if: github.event_name != '"'"'pull_request'"'"' && github.ref == '"'"'refs/heads/master'"'"' && needs.build.outputs.private != '"'"''"'"'\n", "")'
+check; eq "build-private without the master condition: refused" 1 $?
+has "no condition: says so" "build-private must have a" "$T/check.out"
+reset
+sed -i 's/^token_env:.*/token_env: SOME_OTHER_TOKEN/' "$R/main/unisupply/upstream.yaml"
+check; eq "a token_env other than JAILOPS_SOURCE_TOKEN: refused" 1 $?
+cp "$HERE/main/unisupply/upstream.yaml" "$R/main/unisupply/upstream.yaml"
+sed -i 's/^token_env:.*/token_env: JAILOPS_SOURCE_TOKEN/' "$R/main/jailops/upstream.yaml"
+check; eq "the source of the catalog validator behind a token: refused" 1 $?
+has "jailops token: says why" "token_env must be empty" "$T/check.out"
+cp "$HERE/main/jailops/upstream.yaml" "$R/main/jailops/upstream.yaml"
+check; eq "and the repository passes again" 0 $?
 
 # versions.json: written after the signed catalogs are verified, never before; and no deciding script reads it
 edit 's = s.replace("        run: python3 scripts/versions-index.py site\n", "        run: echo no index\n")'

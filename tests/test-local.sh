@@ -82,8 +82,12 @@ sed -i.bak 's/^deps:/# a new comment\ndeps:/' "$R/main/jailops/pkgops.yaml"; rm 
 PUBLISHED_INDEX=$T/index.json check "$BASE"; eq "a comment-only change of a published manifest: accepted" 0 $?
 has "comment-only: noted" "only comments of pkgops.yaml changed" "$T/check.out"
 git -C "$R" reset -q --hard "$BASE"
-sed -i.bak 's/^    echo "JailOps is installed/    # inside the script\n    echo "JailOps is installed/' "$R/main/jailops/pkgops.yaml"; rm -f "$R/main/jailops/pkgops.yaml.bak"; commit "script line"
+# a # line inside a block scalar (the desc: | of the manifest) is text that reaches the package, not a comment
+sed -i.bak 's/^  jailops-priv, the small privileged helper it uses, with their rc.d scripts and$/  # inside the description\n&/' "$R/main/jailops/pkgops.yaml"; rm -f "$R/main/jailops/pkgops.yaml.bak"
+has "the fixture put a # line inside the block scalar" "  # inside the description" "$R/main/jailops/pkgops.yaml"
+commit "line inside a block scalar"
 PUBLISHED_INDEX=$T/index.json check "$BASE"; eq "a # line inside a block scalar is content: refused" 1 $?
+has "the refusal names the package" "jailops: main/jailops changed" "$T/check.out"
 git -C "$R" reset -q --hard "$BASE"
 
 [ "$fails" = 0 ] && echo "test-local: all ok" || { echo "test-local: $fails FAILED"; exit 1; }

@@ -4,10 +4,13 @@ name: Build and publish
 # pkg repository to GitHub Pages at https://pkg.jailops.net/${ABI}/latest. UNVERIFIED: this workflow has not run on GitHub.
 #
 #   pull request / other branch: check, baseline, validate the app catalog, build, assemble an UNSIGNED repository in a
-#                                temp dir and verify it.
-#                                No secret except the optional source token, no signing, no publishing.
-#   push to master:              the same, then the `publish` job (environment `signing`) signs and archives, and
-#                                the `deploy` job deploys the site with actions/deploy-pages.
+#                                temp dir and verify it. Public inputs only: no secret, no signing, no publishing.
+#                                A package whose source needs a token is built on master only.
+#   push to master:              the same, strict (a package that cannot be built stops the run), then `build-private`
+#                                (environment `source`, the only job with the source token, only for packages whose
+#                                upstream.yaml names a token_env), then the `publish` job (environment `signing`) checks the
+#                                build records and that every package of main/ is in the repository, signs and archives,
+#                                and the `deploy` job deploys the site with actions/deploy-pages.
 #
 # The site is an artifact rebuilt every run: baseline (pkgops fetch from the live site, or the Releases archive) plus
 # the packages built now. The package files of the baseline come from the Actions cache when they match the live index
@@ -50,8 +53,7 @@ on:
 env:
   GOTOOLCHAIN: auto
   SITE_URL: https://pkg.jailops.net
-  # Third-party actions must be pinned to a commit SHA (scripts/check-actions-pinned.sh). There are none today, so this
-  # enforces; "0" would only warn.
+  # Every action is pinned to a commit SHA (scripts/check-actions-pinned.sh); "0" would only warn.
   ACTIONS_PIN_ENFORCE: "1"
 
 # Nothing by default: every job names what it needs.
@@ -69,8 +71,9 @@ jobs:
       contents: read
     outputs:
       pkgs: ${{ steps.changed.outputs.pkgs }}
+      private: ${{ steps.changed.outputs.private }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -86,13 +89,13 @@ jobs:
 
       - uses: ./.github/actions/setup-pkgops
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1   # v7.1.0
         with:
           node-version: 24
 
       - name: Restore the baseline cache (an optimisation of the package files only; the live index decides)
         if: ${{ !inputs.first_run }}
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830   # v4.3.0
         with:
           path: .baseline-cache
           key: baseline-${{ hashFiles('PKGOPS_VERSION') }}-${{ github.run_id }}
@@ -107,32 +110,43 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: sh scripts/baseline.sh site "$SITE_URL"
 
+      # The plan is name:abi,abi per package: only the ABIs the published index lacks are built, so a published file of
+      # the other ABI is never rebuilt (another toolchain today would give other bytes, and a published file is immutable).
+      # A package whose upstream.yaml names a token_env is not built here: this job has no secret.
       - name: Which packages need building
         id: changed
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
-          pkgs=$(sh scripts/changed.sh "$BASE" HEAD site)
-          echo "packages to build: ${pkgs:-none}"
-          echo "pkgs=$pkgs" >> "$GITHUB_OUTPUT"
+          plan=$(sh scripts/changed.sh --pairs "$BASE" HEAD site)
+          public=$(sh scripts/split-plan.sh public $plan)
+          private=$(sh scripts/split-plan.sh private $plan)
+          echo "packages to build: ${plan:-none}"
+          echo "  here (no secret): ${public:-none}"
+          echo "  with the source token (master only): ${private:-none}"
+          { echo "pkgs=$public"; echo "private=$private"; } >> "$GITHUB_OUTPUT"
 
       # The catalog's definitions are checked with the daemon's own validator before jailops-apps is built, and when
       # jailops is built (a new daemon must still accept them). The client is built from the jailops source this repository
       # packages. Until that release has `jailops app validate`, the step prints a loud NOT VALIDATED warning and goes on;
       # from then on it enforces itself (scripts/validate-apps.sh).
       - name: Validate the app catalog (jailops app validate)
-        if: contains(format(' {0} ', steps.changed.outputs.pkgs), ' jailops-apps ') || contains(format(' {0} ', steps.changed.outputs.pkgs), ' jailops ')
-        env:
-          JAILOPS_SOURCE_TOKEN: ${{ secrets.JAILOPS_SOURCE_TOKEN }}
+        if: contains(steps.changed.outputs.pkgs, 'jailops-apps') || contains(steps.changed.outputs.pkgs, 'jailops:')
         run: sh scripts/validate-apps.sh
 
       - name: Build
         if: steps.changed.outputs.pkgs != ''
         env:
           PKGS: ${{ steps.changed.outputs.pkgs }}
-          # the secret named by token_env in main/*/upstream.yaml; empty on fork pull requests (the package is then skipped)
-          JAILOPS_SOURCE_TOKEN: ${{ secrets.JAILOPS_SOURCE_TOKEN }}
+          # on master a package that cannot be built stops the run (no silent skip); a pull request builds what it can
+          BUILD_STRICT: ${{ github.event_name != 'pull_request' && '1' || '' }}
+          BUILD_LABEL: build
         run: sh scripts/build-pkg.sh $PKGS
+      - name: Packages that need the source token are built on master only
+        if: github.event_name == 'pull_request' && steps.changed.outputs.private != ''
+        env:
+          PRIVATE: ${{ steps.changed.outputs.private }}
+        run: echo "::notice::not built in a pull request, the source needs a token (master builds it) - $PRIVATE"
 
       - name: Assemble an unsigned repository and verify it (policy, prune.yaml, catalogs)
         run: |
@@ -159,7 +173,7 @@ jobs:
           tar -cf "$RUNNER_TEMP/dist.tar" dist
           ls -l "$RUNNER_TEMP/dist.tar"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
         with:
           name: dist
@@ -167,9 +181,53 @@ jobs:
           compression-level: 0   # .pkg files are already compressed
           if-no-files-found: error
 
-  publish:
+  # The packages whose source needs a token (token_env in upstream.yaml). The only job with JAILOPS_SOURCE_TOKEN, and it
+  # runs for master only: the secret lives in the Environment `source` (deployment branches: master only, a GitHub
+  # setting: docs/supply-chain.md), never in a job a pull request can change. The token is used to download the source
+  # and for nothing else: prebuild and `pkgops build` run without it (scripts/build-pkg.sh).
+  build-private:
     needs: build
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && needs.build.outputs.private != ''
+    runs-on: ubuntu-24.04
+    environment: source
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-pkgops
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1   # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Build
+        env:
+          PKGS: ${{ needs.build.outputs.private }}
+          JAILOPS_SOURCE_TOKEN: ${{ secrets.JAILOPS_SOURCE_TOKEN }}
+          BUILD_STRICT: "1"
+          BUILD_LABEL: private
+        run: sh scripts/build-pkg.sh $PKGS
+
+      - name: Pack the built packages for the publish job
+        run: |
+          set -eu
+          tar -cf "$RUNNER_TEMP/dist-private.tar" dist
+          ls -l "$RUNNER_TEMP/dist-private.tar"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+        with:
+          name: dist-private
+          path: ${{ runner.temp }}/dist-private.tar
+          compression-level: 0
+          if-no-files-found: error
+
+  publish:
+    needs: [build, build-private]
+    # build-private is skipped when no package needs the token; a failed one stops the publish
+    if: ${{ always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && needs.build.result == 'success' && (needs.build-private.result == 'success' || needs.build-private.result == 'skipped') }}
     runs-on: ubuntu-24.04
     # The signing key lives only in this Environment (a repository secret can be overwritten by anyone with write
     # access; an environment secret needs admin). The job never runs for a pull request or a branch other than master.
@@ -179,28 +237,42 @@ jobs:
     permissions:
       contents: write   # the archive: one GitHub release per package version
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with:
           persist-credentials: false
 
       - uses: ./.github/actions/setup-pkgops
 
       # Everything that is downloaded, restored or verified comes first; the key is not on disk yet.
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333   # v8.0.2
         with:
           name: dist
           path: ${{ runner.temp }}/dist-artifact
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333   # v8.0.2
+        if: needs.build-private.result == 'success'
+        with:
+          name: dist-private
+          path: ${{ runner.temp }}/dist-private-artifact
 
       - name: Unpack the built packages
         run: |
           set -eu
           tar -xf "$RUNNER_TEMP/dist-artifact/dist.tar"
+          if [ -f "$RUNNER_TEMP/dist-private-artifact/dist-private.tar" ]; then tar -xf "$RUNNER_TEMP/dist-private-artifact/dist-private.tar"; fi
           mkdir -p dist
           echo "built packages: $(find dist -name '*.pkg' | wc -l)"
 
+      # The packages in dist are those the build jobs made: every file is in a build record with the size and sha256 it
+      # had when it was built, from this commit, at the version of its manifest.
+      - name: Check the packages against the build records
+        env:
+          EXPECT_COMMIT: ${{ github.sha }}
+        run: sh scripts/verify-build-record.sh dist
+
       - name: Restore the baseline cache (an optimisation of the package files only; the live index decides)
         if: ${{ !inputs.first_run }}
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830   # v4.3.0
         with:
           path: .baseline-cache
           key: baseline-${{ hashFiles('PKGOPS_VERSION') }}-${{ github.run_id }}
@@ -220,6 +292,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: pkgops verify-archive --repo "$GITHUB_REPOSITORY" --from site --prune prune.yaml
+
+      # Before the key: the repository about to be signed (the baseline and what was built now) holds every package of
+      # main/ at its current version for every ABI, and a file built now is the file that is already published.
+      - name: Every package of main/ is in the repository to sign
+        run: sh scripts/expect-packages.sh site dist
 
       # The only step with the key on disk: written with umask 077, used for the site files and the signature, removed
       # when the step ends (trap) and again by the next step, whatever happened.
@@ -253,7 +330,7 @@ jobs:
         run: |
           set -eu
           for abi in FreeBSD:15:amd64 FreeBSD:15:aarch64; do pkgops verify "site/$abi/latest" --pubkey site/jailops.pub; done
-          sh scripts/verify-site.sh site
+          VERIFY_SITE_STRICT=1 sh scripts/verify-site.sh site
 
       # versions.json: the newest version of every package, read from the catalogs verified just above, for web pages
       # (jailops.net shows the published versions from it). Informational and NOT signed: pkg never reads it, and no
@@ -269,14 +346,14 @@ jobs:
       - name: Cache the published package files for the next run (.baseline-cache only; never the key or the site)
         run: sh scripts/baseline.sh --refresh-cache site
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1
         with:
           path: site
 
       # Only here: after the signed repository verified and was handed to the Pages upload; never in a pull request.
       - name: Save the baseline cache
         if: ${{ !inputs.first_run && github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830   # v4.3.0
         with:
           path: .baseline-cache
           key: baseline-${{ hashFiles('PKGOPS_VERSION') }}-${{ github.run_id }}
@@ -292,4 +369,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e   # v4.0.5
