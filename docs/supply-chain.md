@@ -89,6 +89,29 @@ steps (`npm ci --ignore-scripts`, the web build) and `pkgops build` without the 
 `check-pkgops.sh` checks all of this. `token_env` must be a plain variable name (`[A-Z_][A-Z0-9_]*`); anything else stops
 the run before it is expanded. The checkouts in `check-updates.yml` do not keep the workflow token in `.git`.
 
+## Recovery: the archive is ahead of Pages
+
+The publish job archives every published package before the deploy, from the same bytes. A run that archived and then
+did not deploy leaves the archive ahead of the live site, and the next publish stops at "Cross-check the baseline with
+the archive" with `archived, not on Pages and not pruned`. That stop is the check working: nothing is signed or
+archived by the run that stops. Re-running the old run does not help, because a re-run uses the workflow file of its own
+commit.
+
+The signed site of the earlier run is the `github-pages` artifact of that run (it keeps for one day). Deploy it as it is,
+then publish again:
+
+    gh api repos/jailops/jailops-packages/actions/runs/RUN/artifacts --jq '.artifacts[] | [.name, .expired] | @tsv'
+    gh workflow run build-and-publish.yml -f deploy_run_id=RUN
+    gh run watch
+    gh workflow run build-and-publish.yml
+
+`deploy_run_id` runs only the job `redeploy`. It accepts a completed push or dispatch run of this workflow on master
+whose job `publish` succeeded, checks `site/jailops.pub` against `KEY_FINGERPRINT`, verifies the signed catalogs, the site
+and the archive, and deploys exactly those bytes: no build, no signing, no key. The check
+`scripts/check-pkgops.sh` requires `deploy` to run when `publish` succeeded (`if: always() && needs.publish.result ==
+'success'`): a job whose `needs` chain holds a skipped job, here `build-private` without a `token_env`, is skipped
+unless it has a status check function.
+
 ## What only the GitHub settings can enforce
 
 The YAML cannot prove that any of these exist. Confirm them in the repository settings (or with the commands), and

@@ -29,6 +29,12 @@ PY
 
 check; eq "the workflow passes" 0 $?
 
+# the deploy job without its status check function (build-private skipped => deploy skipped, the site never deployed)
+edit 's = s.replace("    if: ${{ always() && needs.publish.result == '"'"'success'"'"' }}\n", "")'
+check; eq "deploy without always(): refused" 1 $?
+has "deploy without always(): says why" "the job deploy must say 'if: always() && needs.publish.result == success'" "$T/check.out"
+reset
+
 # the key written before the downloads (the order the workflow had before)
 edit '
 a = s.index("      - uses: actions/download-artifact@")
