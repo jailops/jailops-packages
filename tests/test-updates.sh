@@ -166,11 +166,11 @@ has "strict: summary still written" "upstream unreachable" "$S"
 eq "no site: exit 0" 0 "$rc"
 has "no site: message" "Last publish: unknown" "$S"
 
-# a site near the limit says how to prune
+# a site near the limit says what the publish does about it
 printf '{"schema":1,"generated":"%s","packages":[{"name":"a","size":600000000},{"name":"b","size":300000000}],"pruned":[]}' "$GEN" > "$FIX/pkgops-index.json"
 : > "$S"; runit > "$T/out5b" 2>&1; rc=$?
 eq "big site: exit 0" 0 "$rc"
-has "big site: size and the command" "Site size: 900 MB of the 1 GB that GitHub Pages publishes: prune with \`sh scripts/prune-plan.sh --write\`" "$S"
+has "big site: size and what the publish does" "Site size: 900 MB of the 1 GB that GitHub Pages publishes: the publish prunes by itself and stops above 900 MB" "$S"
 
 # collisions
 printf '{"name":"git-lite"}\n{"name":"baz"}\n' > "$T/ps.yaml"

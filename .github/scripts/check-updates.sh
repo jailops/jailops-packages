@@ -166,7 +166,7 @@ process_group() { # GROUP REPO PREFIX PKG,PKG...
 - Compare: $SERVER/$_repo/compare/$_pre$_cur...$_tag
 - Bumped: $_pk (version, sha256 of the source tarball, a \`_N\` revision is reset, sibling dependency versions follow).
 
-The build workflow runs on this branch and does **not** sign or publish (only a push to master does). Check its log before merging. This PR is never merged automatically, and a bump never prunes anything."
+The build workflow runs on this branch and does **not** sign or publish (only a push to master does). Check its log before merging. This PR is never merged automatically. Once it is merged, the publish keeps only the newest two versions of every package on the site and leaves the older ones in the archive (docs/RETENTION.md)."
       [ -z "$_notes" ] || _body="$_body
 
 **Read before merging:** $_notes"
@@ -238,7 +238,7 @@ site_size_line() {
   case "$_b" in ''|*[!0-9]*) return 0 ;; esac
   _mb=$((_b / 1000000))
   if [ "$_mb" -ge 800 ]; then
-    echo "Site size: $_mb MB of the 1 GB that GitHub Pages publishes: prune with \`sh scripts/prune-plan.sh --write\` (docs/RETENTION.md)"
+    echo "Site size: $_mb MB of the 1 GB that GitHub Pages publishes: the publish prunes by itself and stops above 900 MB; the newest two versions alone are this big (docs/RETENTION.md)"
   else
     echo "Site size: $_mb MB (GitHub Pages publishes at most about 1 GB)"
   fi

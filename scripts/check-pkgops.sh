@@ -196,13 +196,13 @@ if [ -d "$wf" ]; then
     if [ -n "$kj" ]; then
       awk -v j="  $kj:" '$0 == j {inj=1; next} /^  [a-z_-]+:[[:space:]]*$/ {inj=0} inj && /github\.event_name != .pull_request./ {ok=1} END {exit ok?0:1}' "$bp" ||
         fail "build-and-publish.yml: job '$kj' holds the signing key but has no \"github.event_name != 'pull_request'\" condition"
-      # inside that job: nothing is downloaded, restored or fetched after the key is written, and the next step removes it
+      # inside that job: nothing is downloaded, restored or fetched from the step that writes the key up to the step that removes it, and the next step removes it
       order=$(awk -v j="  $kj:" '
         $0 == j {inj=1; next} /^  [a-z_-]+:[[:space:]]*$/ {inj=0}
         !inj {next}
         /^      - / {step++}
         /secrets\.PKG_REPO_KEY/ {keystep = step}
-        keystep && /download-artifact|actions\/cache\/restore|scripts\/baseline\.sh site|verify-archive|setup-pkgops|actions\/checkout/ {late = late " " NR}
+        keystep && step <= keystep + 1 && /download-artifact|actions\/cache\/restore|scripts\/baseline\.sh site|verify-archive|setup-pkgops|actions\/checkout/ {late = late " " NR}
         keystep && step == keystep + 1 && /if:[[:space:]]*always\(\)/ {always = 1}
         keystep && step == keystep + 1 && /pkg-repo\.key/ {removes = 1}
         END {printf "%s|%d|%d", late, always, removes}' "$bp")
@@ -232,6 +232,21 @@ if [ -d "$wf" ]; then
     # the recovery job verifies the artifact of an earlier run against the commit that run was built from
     awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "redeploy:" && /^          ref: \$\{\{ steps\.run\.outputs\.sha \}\}/ {ok=1} END {exit ok?0:1}' "$bp" ||
       fail "build-and-publish.yml: the job redeploy must check out 'ref: \${{ steps.run.outputs.sha }}' (the commit of the run it redeploys)"
+    # the retention policy is applied by the publish job itself: the plan is made after the baseline and the cross-check
+    # with the archive and before the key exists, the signing step applies it, the site is kept below 900 MB, and the
+    # final site is verified against the archive before the upload
+    plan=$(awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "publish:" && /prune-plan\.sh --generate/ && !p {p=NR} job == "publish:" && /Cross-check the baseline with the archive/ && !c {c=NR} job == "publish:" && /The only step with the key on disk/ && !k {k=NR} END {printf "%d %d %d", c, p, k}' "$bp")
+    set -- $plan
+    [ "$1" -gt 0 ] && [ "$2" -gt "$1" ] && [ "$3" -gt "$2" ] ||
+      fail "build-and-publish.yml: the publish job must run 'prune-plan.sh --generate' after the cross-check with the archive and before the key is written"
+    awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "publish:" && /pkgops repo .*--prune "\$PRUNE_FILE" --key/ {ok=1} END {exit ok?0:1}' "$bp" ||
+      fail "build-and-publish.yml: the signing step must apply the generated plan: --prune \"\$PRUNE_FILE\""
+    awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "publish:" && /check-site-size\.sh/ {ok=1} END {exit ok?0:1}' "$bp" ||
+      fail "build-and-publish.yml: the publish job must run scripts/check-site-size.sh (a missed prune must not reach the deploy)"
+    aorder=$(awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "publish:" && /pkgops archive push/ && !a {a=NR} job == "publish:" && /scripts\/verify-archive\.sh --repo "\$GITHUB_REPOSITORY" --from site[[:space:]]*$/ && !v {v=NR} job == "publish:" && /actions\/upload-pages-artifact/ && !u {u=NR} END {printf "%d %d %d", a, v, u}' "$bp")
+    set -- $aorder
+    [ "$1" -gt 0 ] && [ "$2" -gt "$1" ] && [ "$3" -gt "$2" ] ||
+      fail "build-and-publish.yml: the publish job must verify the final site against the archive (verify-archive.sh) after the archive push and before the upload"
   fi
 fi
 # versions.json: written from the catalogs `pkgops verify --pubkey` has just verified (publish job), and never an input

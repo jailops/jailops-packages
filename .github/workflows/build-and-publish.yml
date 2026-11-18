@@ -14,7 +14,7 @@ name: Build and publish
 #
 # The site is an artifact rebuilt every run: baseline (pkgops fetch from the live site, or the Releases archive) plus
 # the packages built now. The package files of the baseline come from the Actions cache when they match the live index
-# (scripts/baseline.sh); the cache only saves downloads and never decides what is published. Nothing is deleted automatically: a version leaves the site only through prune.yaml.
+# (scripts/baseline.sh); the cache only saves downloads and never decides what is published. The publish job prunes by itself in every master run: only the newest two versions of every package and ABI stay on the site (scripts/prune-plan.sh --generate, docs/RETENTION.md); older ones stay in the archive, which nothing here deletes from.
 # The baseline is verified against the signing key (KEY_FINGERPRINT) before anything is fetched, and in the publish job
 # everything that is downloaded, restored or verified happens before the key is written; the key exists only during
 # the signing step and is removed right after it (docs/supply-chain.md).
@@ -303,6 +303,37 @@ jobs:
       - name: Every package of main/ is in the repository to sign
         run: sh scripts/expect-packages.sh site dist
 
+      # The retention policy (docs/RETENTION.md): only the newest two versions of every package and ABI stay on the site. The
+      # plan is made here, in every run, for the repository about to be signed (the baseline and what was built now): a
+      # version is planned only when a newer one is in it, and only when it is a file of the baseline, which the
+      # cross-check above verified against the archive. The signing step applies the plan; nothing is committed.
+      - name: Prune plan (only the newest versions stay on the site; older ones stay in the archive)
+        env:
+          FIRST_RUN: ${{ inputs.first_run && '1' || '' }}
+        run: |
+          set -eu
+          plan="$RUNNER_TEMP/prune.yaml"
+          if [ -n "$FIRST_RUN" ]; then
+            cp prune.yaml "$plan"
+            echo "first run: no baseline, the plan is the committed prune.yaml"
+          else
+            sh scripts/prune-plan.sh --generate site dist "$plan" | tee "$RUNNER_TEMP/prune-plan.txt"
+            {
+              echo "## Pruned from the site (kept in the archive)"
+              echo
+              echo '```'
+              cat "$RUNNER_TEMP/prune-plan.txt"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "PRUNE_FILE=$plan" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+        with:
+          name: prune-plan
+          path: ${{ runner.temp }}/prune.yaml
+          if-no-files-found: error
+
       # The only step with the key on disk: written with umask 077, used for the site files and the signature, removed
       # when the step ends (trap) and again by the next step, whatever happened.
       - name: Sign (site files derived from the key, then the catalogs)
@@ -322,7 +353,7 @@ jobs:
           sh scripts/site-files.sh site "$key"
           mkdir -p dist
           if [ -n "$(find dist -name '*.pkg' -print -quit)" ]; then set -- dist; else set --; fi
-          pkgops repo --repo site --policy pkgops-repo.yaml --prune prune.yaml --key "$key" "$@"
+          pkgops repo --repo site --policy pkgops-repo.yaml --prune "$PRUNE_FILE" --key "$key" "$@"
 
       - name: Remove the signing key
         if: always()
@@ -337,6 +368,11 @@ jobs:
           for abi in FreeBSD:15:amd64 FreeBSD:15:aarch64; do pkgops verify "site/$abi/latest" --pubkey site/jailops.pub; done
           VERIFY_SITE_STRICT=1 sh scripts/verify-site.sh site
 
+      # A missed prune never reaches the deploy: the site stays below 900 MB (GitHub Pages publishes at most about 1 GB); a
+      # warning from 700 MB.
+      - name: The site stays below 900 MB
+        run: sh scripts/check-site-size.sh site 900
+
       # versions.json: the newest version of every package, read from the catalogs verified just above, for web pages
       # (jailops.net shows the published versions from it). Informational and NOT signed: pkg never reads it, and no
       # script decides anything from it (baseline, changed, verify-site use pkgops-index.json and the signed catalogs).
@@ -347,6 +383,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: pkgops archive push --repo "$GITHUB_REPOSITORY" --from site
+
+      # After the archive push, before the upload: every file on the site is archived with the same sha256, and every file
+      # the plan took out (the index lists it as pruned) is archived too; a pruned file that is not archived stops the run.
+      - name: Every file on the site and every pruned file is in the archive
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: sh scripts/verify-archive.sh --repo "$GITHUB_REPOSITORY" --from site
 
       - name: Cache the published package files for the next run (.baseline-cache only; never the key or the site)
         run: sh scripts/baseline.sh --refresh-cache site

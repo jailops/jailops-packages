@@ -91,12 +91,16 @@ the run before it is expanded. The checkouts in `check-updates.yml` do not keep 
 
 ## What stays on Pages
 
-The site keeps the newest version of every package, per ABI (`docs/RETENTION.md`). Older versions are listed in
-`prune.yaml`, left out of the signed catalogs and no longer served; every one of them stays in the archive in GitHub
-Releases, which a prune never touches. The cross-check before the key exists reads `pruned from Pages, still archived`
-as normal and fails on `pruned from Pages and not archived`, so a file leaves the site only when the archive holds it.
-A pruned version is restored from the archive with `pkgops fetch --from github-releases:OWNER/REPO --into site --prune
-prune.yaml` or installed with `pkg add URL`.
+The site keeps the newest two versions of every package, per ABI (`docs/RETENTION.md`), and the publish job decides that itself in
+every master run: `scripts/prune-plan.sh --generate` plans the older files of the baseline before the key is written, the
+signing step applies the plan, and nothing is committed. Older versions are left out of the signed catalogs and no longer
+served; every one of them stays in the archive in GitHub Releases, which a prune never touches. A file is planned only when two
+newer versions of its package and ABI are in the repository to sign and it is a file of the baseline, which the cross-check
+before the key exists verified against the archive. After signing, `scripts/verify-site.sh` checks that every `jailops/...`
+dependency of every package on the site is on the site for the same ABI, by name. After the archive push the final site is
+checked again with `scripts/verify-archive.sh`: `pruned from Pages and not archived` fails the run before the upload, and a site
+of 900 MB or more fails it too (`scripts/check-site-size.sh`). The plan is in the job log, in the job summary and in the artifact
+`prune-plan`. `prune.yaml` is only for an administrator's extra entries. Rolling back is described in `docs/RETENTION.md`.
 
 ## Recovery: the archive is ahead of Pages
 

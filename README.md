@@ -88,9 +88,9 @@ main/<pkg>/pkgops.yaml     what goes into the package (PkgOps manifest)
 main/<pkg>/upstream.yaml   where the source comes from: repo, tag prefix, tarball URL, sha256, prebuild step, token;
                            or `source: local`: the package is built from its own directory (jailops-apps)
 pkgops-repo.yaml           policy: ABIs and minimum release 15.1 (refused otherwise)
-prune.yaml                 the ONLY way a version leaves the site
+prune.yaml                 extra prune entries (normally none): the publish keeps only the newest two versions of each package by itself
 scripts/                   check, fetch-source, prebuild, build-pkg, baseline, changed, split-plan, validate-apps, verify-site, site-files,
-                           bump-version, keygen, check-actions-pinned, verify-build-record, expect-packages, prune-plan (the retention
+                           bump-version, keygen, check-actions-pinned, verify-build-record, expect-packages, check-site-size, prune-plan (the retention
                            plan), versions-index.py (versions.json)
 .github/workflows/         build-and-publish.yml, check-updates.yml (scripts: .github/scripts/)
 tests/                     offline tests (update check, versions.json, baseline cache and its verification, changed packages,
@@ -151,8 +151,9 @@ The run prints `baseline summary: reused N, downloaded N, removed as stale N, by
 
 Remaining cost, honestly: the Pages artifact still contains the whole site on every deploy (GitHub Pages replaces the site as a
 whole; the published site is limited to 1 GB), so the upload grows with the history even though the downloads no longer do.
-The retention policy ([docs/RETENTION.md](docs/RETENTION.md), `scripts/prune-plan.sh`) keeps the site below that limit: the newest
-three versions of every package stay, older ones leave the site through `prune.yaml` and stay in the Releases archive. Moving the
+The retention policy ([docs/RETENTION.md](docs/RETENTION.md), `scripts/prune-plan.sh --generate`) keeps the site below that limit
+by itself: the publish keeps only the newest two versions of every package, older ones leave the site in the same run and
+stay in the Releases archive, and a site of 900 MB or more fails the publish before the deploy. Moving the
 package files out of Pages is NOT done now. The cache keys (`baseline-<PKGOPS_VERSION hash>-<run id>`, restored by prefix, so a new
 PkgOps version starts clean); the entries are evicted after 7 days
 unused or when the repository's cache quota is full, which only means a cold download.
@@ -264,23 +265,22 @@ See [docs/ADD-A-PACKAGE.md](docs/ADD-A-PACKAGE.md): copy the nearest `main/<pkg>
   master-only job `build-private` ([docs/supply-chain.md](docs/supply-chain.md), "The source token"); `jailops` itself stays
   public, because the catalog validation builds its client in a job without a secret.
 
-## Prune (remove a version from the site)
+## Prune (what leaves the site)
 
-Pruning removes a version from GitHub Pages only; the Releases archive keeps it. Either use the PkgOps admin UI
-(`pkgops serve --source https://pkg.jailops.net --prune-via github:jailops/jailops-packages@master:prune.yaml ...`,
-docs/admin.md of PkgOps), or on a machine:
+The publish job prunes by itself in every master run: only the newest two versions of every package and ABI stay on the site
+([docs/RETENTION.md](docs/RETENTION.md)). Older versions leave GitHub Pages and stay in the Releases archive. Nothing is
+committed and nobody runs anything. Look at the site with:
 
 ```sh
-sh scripts/prune-plan.sh --size                                            # how big the site is
-sh scripts/prune-plan.sh                                                   # the retention plan: newest 3 versions of each package (writes nothing)
-sh scripts/prune-plan.sh --write                                           # write it into prune.yaml (review, commit, merge)
-pkgops prune --plan --from https://pkg.jailops.net --older-than 90d -n     # or another selection: look first (-n writes nothing)
-pkgops prune --plan --from https://pkg.jailops.net --name hello --version 0.1.0
-git diff prune.yaml && git commit -am "Prune hello 0.1.0" && git push
+sh scripts/prune-plan.sh --size     # how big the live site is
+sh scripts/prune-plan.sh            # what the next publish would drop (writes nothing)
 ```
 
-`prune.yaml` is the only way things leave the site; pruning the newest version of a package needs `force: true`.
-Deleting from the archive is a separate, confirmed command (`pkgops archive prune ... --confirm "delete from archive"`).
+`prune.yaml` is only for an administrator's extra entries, normally none: another selection (`pkgops prune --plan --from
+https://pkg.jailops.net --older-than 90d -n` looks first, `-n` writes nothing; `--name hello --version 0.1.0` writes an entry
+into `prune.yaml`, which is committed in a pull request). Pruning the newest version of a package needs `force: true`.
+Rolling back is described in [docs/RETENTION.md](docs/RETENTION.md). Deleting from the archive is a
+separate, confirmed command (`pkgops archive prune ... --confirm "delete from archive"`).
 
 ## One-time setup
 

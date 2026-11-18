@@ -112,6 +112,35 @@ has "jailops token: says why" "token_env must be empty" "$T/check.out"
 cp "$HERE/main/jailops/upstream.yaml" "$R/main/jailops/upstream.yaml"
 check; eq "and the repository passes again" 0 $?
 
+# the retention policy is applied by the publish job itself
+edit 's = s.replace("sh scripts/prune-plan.sh --generate site dist", "echo no plan")'
+check; eq "publish without the prune plan: refused" 1 $?
+has "no prune plan: says why" "must run 'prune-plan.sh --generate'" "$T/check.out"
+reset
+edit 's = s.replace("--prune \"$PRUNE_FILE\" --key", "--prune prune.yaml --key")'
+check; eq "signing without the generated plan: refused" 1 $?
+has "signing without the plan: says why" "must apply the generated plan" "$T/check.out"
+reset
+edit 's = s.replace("        run: sh scripts/check-site-size.sh site 900\n", "        run: echo no size gate\n")'
+check; eq "publish without the size gate: refused" 1 $?
+has "no size gate: says why" "must run scripts/check-site-size.sh" "$T/check.out"
+reset
+edit '
+k = s.index("      # After the archive push, before the upload")
+e = s.index("      - name: Cache the published package files")
+blk = s[k:e]
+s = s[:k] + s[e:]
+u = s.index("      # Only here: after the signed repository verified")
+s = s[:u] + blk + s[u:]'
+check; eq "the final archive check after the upload step: refused" 1 $?
+has "archive check after the upload: says why" "must verify the final site against the archive" "$T/check.out"
+reset
+edit 's = s.replace("        run: sh scripts/verify-archive.sh --repo \"$GITHUB_REPOSITORY\" --from site\n", "        run: echo no check\n")'
+check; eq "publish without the final archive check: refused" 1 $?
+has "no final archive check: says why" "must verify the final site against the archive" "$T/check.out"
+reset
+check; eq "and the workflow passes again" 0 $?
+
 # versions.json: written after the signed catalogs are verified, never before; and no deciding script reads it
 edit 's = s.replace("        run: python3 scripts/versions-index.py site\n", "        run: echo no index\n")'
 check; eq "publish job without versions.json: refused" 1 $?
