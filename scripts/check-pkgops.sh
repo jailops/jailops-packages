@@ -12,7 +12,8 @@
 #     group (jailops -> jailops-apps) is not kept in step: pkg resolves dependencies by name, so any version of it
 #     satisfies the dependency, and the version only records what it was written against
 #   - upstream.yaml: group repo tag_prefix tarball strip_components sha256 token_env prebuild; sha256 is 64 hex or PENDING
-#     (--strict: PENDING fails); prebuild steps exist; token_env is passed by the build workflow. Or `source: local`
+#     (--strict: PENDING fails); prebuild steps exist; token_env is empty or JAILOPS_SOURCE_TOKEN, which only the
+#     master-only job `build-private` receives. Or `source: local`
 #     (the package is built from its own directory): then only prebuild, no upstream keys, and no file from src/
 #   - the packages of one group share one upstream version
 #   - files named in pkgops.yaml outside src/ and build/ exist
@@ -25,10 +26,13 @@
 #   - the signing secret appears only in build-and-publish.yml, once, with `environment: signing`, never in a pull_request job;
 #     in that job every download, cache restore, baseline and archive check comes before the key is written, and the step
 #     right after the signing step removes the key with `if: always()`
+#   - JAILOPS_SOURCE_TOKEN appears once in build-and-publish.yml, in the job `build-private` with `environment: source`
+#     and `github.event_name != 'pull_request'`; the source of jailops (the catalog validator, built in a job without
+#     the token) has an empty token_env
 #   - build-and-publish.yml: `permissions: {}` at the top and a `permissions:` block in every job
 #   - versions.json (scripts/versions-index.py) is informational: in the publish job it is written only after the signed
 #     catalogs were verified, and no script that decides what is built, fetched or published reads it
-#   - every third-party action is pinned to a commit SHA (scripts/check-actions-pinned.sh; ACTIONS_PIN_ENFORCE=0 warns only)
+#   - every action is pinned to a commit SHA (scripts/check-actions-pinned.sh; ACTIONS_PIN_ENFORCE=0 warns only)
 #   - immutability, with BASE_REF (or $CHECK_BASE): a package whose main/<pkg>/ changed since BASE_REF must have a new
 #     version (scripts/bump-version.sh --revision for a packaging change). Exceptions: pinning a PENDING sha256, and a
 #     change of comment lines of pkgops.yaml only (outside block scalars; comments never reach the package).
@@ -117,8 +121,11 @@ for p in $pkgs; do
     case " $known " in *" $step "*) ;; *) fail "$p: unknown prebuild step '$step'" ;; esac
   done
   te=$(up_get "$p" token_env)
-  if [ -n "$te" ] && ! grep -q "secrets\.$te" "$REPO_ROOT"/.github/workflows/build-and-publish.yml 2>/dev/null; then
-    fail "$p: token_env $te is not passed to the build by .github/workflows/build-and-publish.yml (env: $te: \${{ secrets.$te }})"
+  if [ -n "$te" ] && [ "$te" != JAILOPS_SOURCE_TOKEN ]; then
+    fail "$p: token_env $te: the only source token the build jobs know is JAILOPS_SOURCE_TOKEN (job build-private)"
+  fi
+  if [ "$p" = jailops ] && [ -n "$te" ]; then
+    fail "jailops: token_env must be empty: scripts/validate-apps.sh builds the jailops client in a job that has no secret"
   fi
 
   # files that come from this directory (not from the fetched source or the build) must exist
@@ -204,6 +211,15 @@ if [ -d "$wf" ]; then
     fi
   fi
   if [ -f "$bp" ]; then
+    # the source token: one place, a job of master only that has an Environment, never the job a pull request runs
+    n=$(grep -c 'secrets\.JAILOPS_SOURCE_TOKEN' "$bp" || true)
+    [ "$n" = 1 ] || fail "build-and-publish.yml: secrets.JAILOPS_SOURCE_TOKEN must appear exactly once (found $n)"
+    tj=$(awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} /secrets\.JAILOPS_SOURCE_TOKEN/ {print job}' "$bp" | tr -d ':')
+    [ "$tj" = build-private ] || fail "build-and-publish.yml: secrets.JAILOPS_SOURCE_TOKEN must be in the job build-private, found in '${tj:-none}'"
+    awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "build-private:" && /^    environment:[[:space:]]*source[[:space:]]*$/ {ok=1} END {exit ok?0:1}' "$bp" ||
+      fail "build-and-publish.yml: the job build-private must say 'environment: source'"
+    awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "build-private:" && /github\.event_name != .pull_request./ {ok=1} END {exit ok?0:1}' "$bp" ||
+      fail "build-and-publish.yml: the job build-private must have a \"github.event_name != 'pull_request'\" condition"
     grep -Eq '^permissions:[[:space:]]*\{\}[[:space:]]*$' "$bp" || fail "build-and-publish.yml: the workflow-level permissions must be {} (each job names its own)"
     for j in $(awk '/^jobs:/ {inj=1; next} inj && /^[^[:space:]#]/ {inj=0} inj && /^  [a-z_-]+:[[:space:]]*$/ {print $1}' "$bp" | tr -d ':'); do
       awk -v j="  $j:" '$0 == j {inj=1; next} /^  [a-z_-]+:[[:space:]]*$/ {inj=0} inj && /^    permissions:/ {ok=1} END {exit ok?0:1}' "$bp" ||
@@ -228,13 +244,12 @@ ACTIONS_PIN_ENFORCE=${ACTIONS_PIN_ENFORCE:-1} sh "$REPO_ROOT/scripts/check-actio
 # the baseline cache: restored in both baseline steps, saved only in the publish job (never for a pull request), and only
 # the .baseline-cache directory, never the key, the site or the workspace
 if [ -f "$bp" ]; then
-  [ "$(grep -c 'uses: actions/cache/save@v4' "$bp")" = 1 ] || fail "build-and-publish.yml: actions/cache/save@v4 must appear exactly once"
-  grep -Eq 'uses: actions/cache(/restore)?@' "$bp" && grep -E 'uses: actions/cache(/restore|/save)?@' "$bp" | grep -vq '@v4' && fail "build-and-publish.yml: pin actions/cache to @v4"
-  [ "$(grep -c 'uses: actions/cache/restore@v4' "$bp")" = 2 ] || fail "build-and-publish.yml: actions/cache/restore@v4 must appear twice (build and publish baseline)"
+  [ "$(grep -Ec 'uses: actions/cache/save@[0-9a-f]{40}' "$bp")" = 1 ] || fail "build-and-publish.yml: actions/cache/save must appear exactly once, pinned to a commit SHA"
+  [ "$(grep -Ec 'uses: actions/cache/restore@[0-9a-f]{40}' "$bp")" = 2 ] || fail "build-and-publish.yml: actions/cache/restore must appear twice (build and publish baseline), pinned to a commit SHA"
   grep -Eq 'uses: actions/cache@' "$bp" && fail "build-and-publish.yml: use actions/cache/restore and /save, not actions/cache (it would save in the build job and in pull requests)"
   sj=$(awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} /actions\/cache\/save/ {print job}' "$bp" | tr -d ':')
   [ "$sj" = publish ] || fail "build-and-publish.yml: actions/cache/save must be in the publish job, found in '$sj'"
-  grep -B4 'uses: actions/cache/save@v4' "$bp" | grep -q "github.event_name != 'pull_request'.*refs/heads/master" ||
+  grep -B4 'uses: actions/cache/save@' "$bp" | grep -q "github.event_name != 'pull_request'.*refs/heads/master" ||
     fail "build-and-publish.yml: the cache save step must be conditional on github.event_name != 'pull_request' and master"
   # the `with:` blocks of the cache steps (up to the next blank line)
   cblk=$(awk '/uses: actions\/cache\// {c=1} /^[[:space:]]*$/ {c=0} c' "$bp")

@@ -58,4 +58,24 @@ eq "first run (empty site): builds every package" "$(all_pkgs | sort | tr '\n' '
 eq "no baseline, git diff: only the package whose files changed" "unisupply" "$(changed "$BASE")"
 eq "no baseline, no base: every package" "$(all_pkgs | sort | tr '\n' ' ' | sed 's/ $//')" "$(changed "" | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')"
 
+# --pairs: name:abi,abi, only the ABIs the index lacks (a published file of the other ABI is never rebuilt)
+pairs() { sh "$R/scripts/changed.sh" --pairs "$1" HEAD "${2:-}" | tr -s ' ' | sed 's/^ //; s/ $//'; }
+make_index "$T/abi"                      # everything, then drop one ABI of one package
+jq '.packages |= map(select(.name=="unisupply" and .abi=="FreeBSD:15:aarch64" | not))' "$T/abi/pkgops-index.json" > "$T/abi/x" && mv "$T/abi/x" "$T/abi/pkgops-index.json"
+git -C "$R" reset -q --hard "$BASE"
+eq "pairs: only the missing ABI of a package" "unisupply:FreeBSD:15:aarch64" "$(pairs "$BASE" "$T/abi")"
+make_index "$T/pabs" incus-sync
+eq "pairs: a package missing for every ABI lists them all" "incus-sync:$(abis_of incus-sync | tr '\n' ',' | sed 's/,$//')" "$(pairs "$BASE" "$T/pabs")"
+eq "pairs: everything published: nothing" "" "$(pairs "$BASE" "$T/full")"
+eq "pairs: first run: every package with every ABI" "$(for p in $(all_pkgs); do printf '%s:%s\n' "$p" "$(abis_of "$p" | tr '\n' ',' | sed 's/,$//')"; done | sort | tr '\n' ' ' | sed 's/ $//')" \
+  "$(pairs "" "$T/empty" | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')"
+
+# split-plan: no token_env is public, a token_env is private
+eq "split-plan: public" "unisupply:FreeBSD:15:aarch64" "$(sh "$R/scripts/split-plan.sh" public unisupply:FreeBSD:15:aarch64)"
+eq "split-plan: nothing private" "" "$(sh "$R/scripts/split-plan.sh" private unisupply:FreeBSD:15:aarch64)"
+sed -i 's/^token_env:.*/token_env: JAILOPS_SOURCE_TOKEN/' "$R/main/unisupply/upstream.yaml"
+eq "split-plan: a token_env makes it private" "unisupply:FreeBSD:15:aarch64" "$(sh "$R/scripts/split-plan.sh" private unisupply:FreeBSD:15:aarch64 incus-sync)"
+eq "split-plan: and not public" "incus-sync" "$(sh "$R/scripts/split-plan.sh" public unisupply:FreeBSD:15:aarch64 incus-sync)"
+git -C "$R" checkout -q -- .
+
 [ "$fails" = 0 ] && echo "test-changed: all ok" || { echo "test-changed: $fails FAILED"; exit 1; }

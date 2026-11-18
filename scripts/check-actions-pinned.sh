@@ -1,15 +1,15 @@
 #!/bin/sh
 # check-actions-pinned.sh [FILE|DIR ...]
 #
-# Every third-party action a workflow or composite action uses must be pinned to a full 40-hex commit SHA:
+# Every action a workflow or composite action uses must be pinned to a full 40-hex commit SHA, GitHub's own included:
 #   uses: owner/repo@0123456789abcdef0123456789abcdef01234567   # v1.2.3
-# Allowed without a SHA: first-party actions (ACTIONS_FIRST_PARTY, default "actions/ github/"), local actions
-# (./path) and docker:// images. Default arguments: .github and action.yml when they exist.
+# Allowed without a SHA: local actions (./path), docker:// images, and the owners named in ACTIONS_FIRST_PARTY (a list of
+# prefixes such as "actions/ github/", empty by default). Default arguments: .github and action.yml when they exist.
 #
 # ACTIONS_PIN_ENFORCE=1 fails on an unpinned action; anything else only warns (exit 0). docs/supply-chain.md has the
 # commands that find the SHA of each tag.
 set -eu
-FIRST_PARTY=${ACTIONS_FIRST_PARTY:-"actions/ github/"}
+FIRST_PARTY=${ACTIONS_FIRST_PARTY:-}
 ENFORCE=${ACTIONS_PIN_ENFORCE:-0}
 if [ $# -eq 0 ]; then
   for d in .github action.yml action.yaml; do [ -e "$d" ] && set -- "$@" "$d"; done
@@ -50,10 +50,10 @@ bad=$(grep -c '^x$' "$out" || true)
 grep -v '^x$' "$out" || true
 if [ "$bad" -gt 0 ]; then
   if [ "$ENFORCE" = 1 ]; then
-    echo "check-actions-pinned: $bad unpinned third-party action(s)"
+    echo "check-actions-pinned: $bad unpinned action(s)"
     exit 1
   fi
-  echo "check-actions-pinned: $bad unpinned third-party action(s); warning only until ACTIONS_PIN_ENFORCE=1"
+  echo "check-actions-pinned: $bad unpinned action(s); warning only until ACTIONS_PIN_ENFORCE=1"
   exit 0
 fi
-echo "check-actions-pinned: every third-party action is pinned to a commit SHA"
+echo "check-actions-pinned: every action is pinned to a commit SHA"

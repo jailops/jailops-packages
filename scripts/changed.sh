@@ -1,5 +1,5 @@
 #!/bin/sh
-# changed.sh BASE HEAD [SITE_DIR]
+# changed.sh [--pairs] BASE HEAD [SITE_DIR]
 #
 # Prints (one line, space separated) the packages to build:
 #   - with SITE_DIR (a baseline fetched with scripts/baseline.sh): every package whose current version is missing from
@@ -9,13 +9,23 @@
 #   - without SITE_DIR: the packages whose files under main/ differ between BASE and HEAD, or every package when BASE
 #     is empty, all zeros or unknown to git.
 # Packages that are already published are NEVER rebuilt: their files come from the baseline.
+#
+# --pairs prints name:abi,abi instead of name: the ABIs that are missing (with SITE_DIR) or every ABI of the manifest
+# (without). The build then makes only those ABIs, so a published file of the other ABI is never rebuilt, whatever
+# toolchain the runner has today (a published file is immutable: another byte is a failed publish).
 set -eu
 . "$(dirname "$0")/lib.sh"
 
+PAIRS=
+[ "${1:-}" = "--pairs" ] && { PAIRS=1; shift; }
 BASE=${1:-}; HEAD=${2:-HEAD}; SITE=${3:-}
 all=$(all_pkgs | tr '\n' ' ')
 out=" "
 add() { case "$out" in *" $1 "*) ;; *) out="$out$1 " ;; esac; }
+# abis_csv PKG: the ABIs of the manifest, comma separated
+abis_csv() { abis_of "$1" | tr '\n' ',' | sed 's/,$//'; }
+# name:abi,abi of every package with a missing ABI, for --pairs (SITE mode)
+missing=" "
 
 if [ -n "$SITE" ]; then
   # The published index decides alone: a package is built when its current version is missing from the index for
@@ -25,9 +35,11 @@ if [ -n "$SITE" ]; then
   # restore from the archive build exactly what the site lacks.
   for p in $all; do
     v=$(mf_get "$p" version)
+    miss=
     for abi in $(abis_of "$p"); do
-      index_has "$SITE" "$p" "$v" "$abi" || { add "$p"; break; }
+      index_has "$SITE" "$p" "$v" "$abi" || miss="$miss${miss:+,}$abi"
     done
+    [ -z "$miss" ] || { add "$p"; missing="$missing$p:$miss "; }
   done
 else
   # No baseline to compare with: fall back to the git diff, or to everything when there is nothing to diff against.
@@ -44,4 +56,16 @@ else
   fi
 fi
 
-echo $out
+if [ -n "$PAIRS" ]; then
+  line=
+  for p in $out; do
+    if [ -n "$SITE" ]; then
+      for m in $missing; do case "$m" in "$p:"*) line="$line$m " ;; esac; done
+    else
+      line="$line$p:$(abis_csv "$p") "
+    fi
+  done
+  echo $line
+else
+  echo $out
+fi

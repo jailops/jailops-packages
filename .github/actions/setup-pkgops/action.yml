@@ -12,13 +12,13 @@ runs:
       id: pin
       shell: bash
       run: echo "ref=$(tr -d ' \n\r' < PKGOPS_VERSION)" >> "$GITHUB_OUTPUT"
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
       with:
         repository: jailops/jailops-pkgops
         ref: ${{ steps.pin.outputs.ref }}
         path: .pkgops-src
         persist-credentials: false   # the token is not needed after the checkout, and pkgops is built from this tree
-    - uses: actions/setup-go@v7
+    - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5   # v7.1.0
       with:
         go-version: stable
         cache: false

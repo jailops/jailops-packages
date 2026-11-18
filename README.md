@@ -9,14 +9,22 @@ Signed FreeBSD packages for JailOps and a few related tools, built with [PkgOps]
 
 ## Use it
 
-As root on a FreeBSD 15.1+ host, paste this one block. It fetches the signing key, goes on only if the key has the
-fingerprint printed here, and configures the repository:
+As root on a FreeBSD 15.1+ host with `sh` as the shell, paste this one block. It fetches the signing key into a temporary
+directory and compares its sha256 with the fingerprint in the first line. On a difference it stops, and nothing on the host
+has changed: no key, no repository configuration. Only after the comparison does it put the key and the repository
+configuration in place, update the catalog and install `jailops`.
 
 ```sh
-mkdir -p /usr/local/etc/pkg/keys /usr/local/etc/pkg/repos && \
-fetch -qo /usr/local/etc/pkg/keys/jailops.pub https://pkg.jailops.net/jailops.pub && \
-[ "$(sha256 -q /usr/local/etc/pkg/keys/jailops.pub)" = b9fb3c980044dbd7a37c6e53e6a17510b054ba3af65e538eb2eae0f14be26a70 ] && \
-cat > /usr/local/etc/pkg/repos/jailops.conf <<'EOF' && pkg update
+sh -eu <<'JAILOPS_TRUST' && pkg install -r jailops jailops
+FINGERPRINT=b9fb3c980044dbd7a37c6e53e6a17510b054ba3af65e538eb2eae0f14be26a70
+tmp=$(mktemp -d -t jailops-trust.XXXXXXXX)
+trap 'rm -rf "$tmp"' EXIT
+fetch -qo "$tmp/jailops.pub" https://pkg.jailops.net/jailops.pub
+if [ "$(sha256 -q "$tmp/jailops.pub")" != "$FINGERPRINT" ]; then
+  echo "jailops.pub does not have the fingerprint $FINGERPRINT: nothing was changed" >&2
+  exit 1
+fi
+cat > "$tmp/jailops.conf" <<'EOF'
 jailops: {
   url: "https://pkg.jailops.net/${ABI}/latest",
   signature_type: "pubkey",
@@ -24,15 +32,17 @@ jailops: {
   enabled: yes
 }
 EOF
+mkdir -p /usr/local/etc/pkg/keys /usr/local/etc/pkg/repos
+install -m 0644 "$tmp/jailops.pub" /usr/local/etc/pkg/keys/jailops.pub
+install -m 0644 "$tmp/jailops.conf" /usr/local/etc/pkg/repos/jailops.conf
+pkg update -r jailops
+JAILOPS_TRUST
 ```
 
-If the fingerprint differs, nothing is configured and `pkg update` does not run: delete
-`/usr/local/etc/pkg/keys/jailops.pub` and do not go on. The fingerprint is the sha256 of the public key file; it is also
-published at <https://pkg.jailops.net/jailops.fingerprint> and committed as `KEY_FINGERPRINT`, but trust the one in this
-README on GitHub, not only what the same web server told you.
-
-That is all the setup. What to install is your choice: `pkg search -r jailops .` lists the packages (the table below
-says what each one is), then `pkg install -r jailops <name>`.
+The fingerprint is the sha256 of the public key file. It is also published at <https://pkg.jailops.net/jailops.fingerprint>
+and committed as `KEY_FINGERPRINT`, but trust the one in this README on GitHub, not only what the same web server told you.
+To install something else, replace the last word of the first line with the package name: `pkg search -r jailops .` lists
+the packages (the table below says what each one is).
 
 (No `mirror_type`: the repository is plain HTTPS, not an SRV mirror set.) Package names and origins (`jailops/<name>`)
 do not collide with FreeBSD ports; pkg picks the highest version across all enabled repositories, so keep it that way.
@@ -79,11 +89,12 @@ main/<pkg>/upstream.yaml   where the source comes from: repo, tag prefix, tarbal
                            or `source: local`: the package is built from its own directory (jailops-apps)
 pkgops-repo.yaml           policy: ABIs and minimum release 15.1 (refused otherwise)
 prune.yaml                 the ONLY way a version leaves the site
-scripts/                   check, fetch-source, prebuild, build-pkg, baseline, changed, validate-apps, verify-site, site-files, bump-version, keygen,
-                           check-actions-pinned, prune-plan (the retention plan), versions-index.py (versions.json)
+scripts/                   check, fetch-source, prebuild, build-pkg, baseline, changed, split-plan, validate-apps, verify-site, site-files,
+                           bump-version, keygen, check-actions-pinned, verify-build-record, expect-packages, prune-plan (the retention
+                           plan), versions-index.py (versions.json)
 .github/workflows/         build-and-publish.yml, check-updates.yml (scripts: .github/scripts/)
 tests/                     offline tests (update check, versions.json, baseline cache and its verification, changed packages,
-                           source: local, workflow rules): sh tests/run.sh
+                           source: local, build records, the trust block, workflow rules): sh tests/run.sh
 KEY_FINGERPRINT            sha256 of the public signing key (not secret; the publish job refuses another key, and the
                            baseline is verified with the key that has it)
 PKGOPS_VERSION             the pinned pkgops release (see the file)
@@ -93,17 +104,23 @@ A push to `master` runs `build-and-publish.yml`:
 
 1. **build** job: `scripts/check-pkgops.sh`, install the pinned pkgops, `scripts/baseline.sh` (`pkgops fetch --pubkey` from
    the live site, its signed catalogs verified with the key whose sha256 is `KEY_FINGERPRINT`, or from the GitHub Releases
-   archive when the site has no key or index), `scripts/changed.sh` (the packages whose
-   current version is missing from the baseline index, and nothing else: touching files, scripts or the pin builds nothing),
-   `scripts/validate-apps.sh` when `jailops-apps` or `jailops` is to be built (see "The application catalog" below), `scripts/build-pkg.sh`
-   (fetch source with sha256 check, prebuild, `pkgops build --abi all`), then an unsigned `pkgops repo` + `pkgops verify`
-   in the runner. Pull requests and other branches stop here: **no signing, no publishing**.
+   archive when the site has no key or index), `scripts/changed.sh --pairs` (the packages and ABIs whose
+   current version is missing from the baseline index, and nothing else: touching files, scripts or the pin builds nothing,
+   and a published file of the other ABI is never rebuilt), `scripts/validate-apps.sh` when `jailops-apps` or `jailops` is to be
+   built (see "The application catalog" below), `scripts/build-pkg.sh` (fetch source with sha256 check, prebuild,
+   `pkgops build --abi` for the missing ABIs, and a build record: commit, toolchain, and the name, version, ABI, size and sha256
+   of every file), then an unsigned `pkgops repo` + `pkgops verify` in the runner. This job has no secret. On master a package
+   that cannot be built stops the run (`BUILD_STRICT=1`); a pull request builds what it can. Pull requests and other branches
+   stop here: **no signing, no publishing**.
+   A package whose `upstream.yaml` names a `token_env` is built by the master-only job **build-private** (GitHub Environment
+   `source`, the only place `JAILOPS_SOURCE_TOKEN` exists), never in a pull request.
 2. **publish** job (master only, GitHub Environment `signing`): first everything that is downloaded or checked: the built
-   packages, the cache, the baseline again (verified as above), `pkgops verify-archive` (the baseline agrees with the
-   archive). Only then one step writes the key to `$RUNNER_TEMP` with umask 077, runs `scripts/site-files.sh` (public key
+   packages, checked against their build records (`scripts/verify-build-record.sh`), the cache, the baseline again (verified
+   as above), `pkgops verify-archive` (the baseline agrees with the archive), and `scripts/expect-packages.sh` (every package
+   of `main/` is in the repository about to be signed, and a file built now is the file already published). Only then one step writes the key to `$RUNNER_TEMP` with umask 077, runs `scripts/site-files.sh` (public key
    `jailops.pub`, `jailops.fingerprint`, `CNAME`, `index.html`, all derived from the secret on every run) and
    `pkgops repo --policy --prune --key`, and removes the key; an `if: always()` step removes it again. Then `pkgops verify`,
-   `scripts/verify-site.sh` (no package vanished), `scripts/versions-index.py` (`versions.json`, below), `pkgops archive
+   `scripts/verify-site.sh` (no package vanished, strict: a package that is not ready fails too), `scripts/versions-index.py` (`versions.json`, below), `pkgops archive
    push` (every `.pkg` into GitHub Releases), and the site as the Pages artifact. Order, permissions per job and action pins are checked by `scripts/check-pkgops.sh`
    ([docs/supply-chain.md](docs/supply-chain.md)).
 3. **deploy** job: `actions/deploy-pages`. The site is an artifact; no binary is ever in git or a `gh-pages` branch.
@@ -141,7 +158,9 @@ PkgOps version starts clean); the entries are evicted after 7 days
 unused or when the repository's cache quota is full, which only means a cold download.
 
 Go builds use `GOTOOLCHAIN=auto` (workflow-level `env:`, and `build-pkg.sh` sets it; `check-pkgops.sh` fails without it),
-`actions/setup-go` (stable) and `actions/setup-node` 24 for the web builds.
+`actions/setup-go` (stable) and `actions/setup-node` 24 for the web builds. The Go, Node, npm and pkgops versions that built a
+package are in its build record (`dist/records/*.json`, in the job's artifact), so a file that differs from a published one can be
+traced to the toolchain that made it.
 
 ### versions.json: the published versions, for web pages
 
@@ -227,7 +246,7 @@ See [docs/ADD-A-PACKAGE.md](docs/ADD-A-PACKAGE.md): copy the nearest `main/<pkg>
   `jailops-apps` by name: pkg resolves dependencies by name, so any version satisfies it, and the version in that line only
   records the first one; it is not kept in step (only dependencies within a group are). Before the package is built,
   `scripts/validate-apps.sh` builds the `jailops` client from the jailops source this repository packages (the version of
-  `main/jailops/pkgops.yaml`, sha256-verified like its own build, with `JAILOPS_SOURCE_TOKEN` if `token_env` names it) and
+  `main/jailops/pkgops.yaml`, sha256-verified like its own build; the source of `jailops` is public, its `token_env` is empty) and
   runs `jailops app validate main/jailops-apps/apps`: the daemon's own validator, offline. An invalid definition fails the
   build with `FILE: reason`. The command exists from the JailOps release after 0.3.1; until `main/jailops` packages such a
   release, the step prints a loud **NOT VALIDATED** warning (log, annotation and run summary) and goes on: that is the only
@@ -238,12 +257,12 @@ See [docs/ADD-A-PACKAGE.md](docs/ADD-A-PACKAGE.md): copy the nearest `main/<pkg>
   A published version is immutable: `check-pkgops.sh BASE` fails when `main/<pkg>/` changed and the version did not
   (a change of comment lines of `pkgops.yaml` alone is allowed: comments never reach the package).
 - **The first release of a source**: set `sha256: PENDING` until the tag exists, then `sh scripts/bump-version.sh --pin PKG...`.
-  A package whose sha256 is PENDING (or whose token secret is missing) is skipped, with its group, with a warning.
-  `BUILD_STRICT=1` turns the skip into a failure.
-- **jailops, jailops-client, jailops-backupd** are built from `jailops/jailops`, which is private and untagged for now. They need
-  the tag `v0.1.0` (then pin the sha256) and a read token in the secret `JAILOPS_SOURCE_TOKEN` (also an env var for the
-  scripts); with a public repository, empty `token_env:` in the three `upstream.yaml` files.
-  `jailops/jailops-pkgops` `v0.1.0` must exist before `PKGOPS_VERSION` and the `pkgops` package work.
+  A package whose sha256 is PENDING (or whose token secret is missing) is skipped, with its group, with a warning, in a pull
+  request; on master the build fails (`BUILD_STRICT=1`).
+- **jailops, jailops-client, jailops-backupd** are built from `jailops/jailops`, a public repository: `token_env:` is empty in
+  the three `upstream.yaml` files. A source that needs a token names `JAILOPS_SOURCE_TOKEN` in `token_env:` and is built by the
+  master-only job `build-private` ([docs/supply-chain.md](docs/supply-chain.md), "The source token"); `jailops` itself stays
+  public, because the catalog validation builds its client in a job without a secret.
 
 ## Prune (remove a version from the site)
 
@@ -276,8 +295,9 @@ Deleting from the archive is a separate, confirmed command (`pkgops archive prun
    choice (docs/supply-chain.md). Add the secret `PKG_REPO_KEY` there (`gh secret set PKG_REPO_KEY --env signing --repo jailops/jailops-packages < ~/.config/jailops-packages/jailops-repo.key`).
    Never a repository-level secret, never in a pull request. Commit `KEY_FINGERPRINT` and `README.md`. The YAML cannot
    prove these settings exist: confirm them with the commands in [docs/supply-chain.md](docs/supply-chain.md).
-6. Optional repository secrets: `JAILOPS_SOURCE_TOKEN` (read access to `jailops/jailops` while it is private), `UPDATE_TOKEN`
-   (a token that may open PRs and start workflows, for `check-updates.yml`).
+6. Optional: `UPDATE_TOKEN`, a repository secret (a token that may open PRs and start workflows, for `check-updates.yml`), and, only
+   for a package whose source is private, the Environment `source` (deployment branches `master` only) with the secret
+   `JAILOPS_SOURCE_TOKEN` in it.
 7. Publish the pkgops tag `v0.1.0` in `jailops/jailops-pkgops` (or put a commit SHA in `PKGOPS_VERSION`), tag `jailops/jailops` `v0.1.0`
    and run `sh scripts/bump-version.sh --pin pkgops jailops-client jailops jailops-backupd`.
 8. First publish only: Actions, "Build and publish", Run workflow with `first_run` = true (there is no site and no archive to
@@ -304,7 +324,7 @@ pkgops verify /tmp/site/FreeBSD:15:amd64/latest --pubkey /tmp/t/t.pub
 ```
 
 Environment: `SRC_<PKG>` (package name upper-cased, `-` to `_`), `JAILOPS_SOURCE_TOKEN`, `DIST_DIR`, `SOURCE_DATE_EPOCH`,
-`NPM_CI_ARGS`, `BUILD_STRICT`, `BASELINE_FIRST_RUN`, `NO_DOWNLOAD` (bump), `JAILOPS` (validate-apps). Tools: a POSIX sh, curl, tar, jq (or python3), Go, Node 24 for the web builds.
+`NPM_CI_ARGS`, `BUILD_STRICT`, `BUILD_LABEL` (name of the build record), `EXPECT_COMMIT` and `VERIFY_SITE_STRICT` (the publish job), `BASELINE_FIRST_RUN`, `NO_DOWNLOAD` (bump), `JAILOPS` (validate-apps). Tools: a POSIX sh, curl, tar, jq (or python3), Go, Node 24 for the web builds.
 `*.key`, `*.pem`, `site/`, `dist/`, `main/*/src/`, `main/*/build/` are in `.gitignore`; `check-pkgops.sh` fails if key material is in the tree.
 
 ## Open decisions
