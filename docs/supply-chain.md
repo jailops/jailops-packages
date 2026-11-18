@@ -89,6 +89,15 @@ steps (`npm ci --ignore-scripts`, the web build) and `pkgops build` without the 
 `check-pkgops.sh` checks all of this. `token_env` must be a plain variable name (`[A-Z_][A-Z0-9_]*`); anything else stops
 the run before it is expanded. The checkouts in `check-updates.yml` do not keep the workflow token in `.git`.
 
+## What stays on Pages
+
+The site keeps the newest version of every package, per ABI (`docs/RETENTION.md`). Older versions are listed in
+`prune.yaml`, left out of the signed catalogs and no longer served; every one of them stays in the archive in GitHub
+Releases, which a prune never touches. The cross-check before the key exists reads `pruned from Pages, still archived`
+as normal and fails on `pruned from Pages and not archived`, so a file leaves the site only when the archive holds it.
+A pruned version is restored from the archive with `pkgops fetch --from github-releases:OWNER/REPO --into site --prune
+prune.yaml` or installed with `pkg add URL`.
+
 ## Recovery: the archive is ahead of Pages
 
 The publish job archives every published package before the deploy, from the same bytes. A run that archived and then

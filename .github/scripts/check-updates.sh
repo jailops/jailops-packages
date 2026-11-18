@@ -230,6 +230,20 @@ publish_age_line() {
   else echo "Last publish: unknown (no readable \`generated\` in the index)"; fi
 }
 
+# the size of the site, from the index that publish_age_line fetched: GitHub Pages publishes at most about 1 GB
+site_size_line() {
+  [ -s "$WORK/index.json" ] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  _b=$(jq -r '[.packages[]?.size // 0] | add // 0' "$WORK/index.json" 2>/dev/null) || return 0
+  case "$_b" in ''|*[!0-9]*) return 0 ;; esac
+  _mb=$((_b / 1000000))
+  if [ "$_mb" -ge 800 ]; then
+    echo "Site size: $_mb MB of the 1 GB that GitHub Pages publishes: prune with \`sh scripts/prune-plan.sh --write\` (docs/RETENTION.md)"
+  else
+    echo "Site size: $_mb MB (GitHub Pages publishes at most about 1 GB)"
+  fi
+}
+
 write_summary() {
   {
     echo "## Update check $(date -u +%Y-%m-%d)"
@@ -239,6 +253,7 @@ write_summary() {
     echo "$PIN_LINE"
     echo
     publish_age_line
+    _s=$(site_size_line); [ -z "$_s" ] || { echo; echo "$_s"; }
     [ "$UNREACHABLE" = 0 ] || { echo; echo "$UNREACHABLE upstream(s) unreachable${STRICT:+ (strict: this run fails)}."; }
     [ "$ERRORS" = 0 ] || { echo; echo "$ERRORS error(s) while opening PRs: see the log."; }
   } >> "${SUMMARY_FILE:-${GITHUB_STEP_SUMMARY:-/dev/stdout}}"

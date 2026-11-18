@@ -296,7 +296,7 @@ jobs:
         if: ${{ !inputs.first_run }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: pkgops verify-archive --repo "$GITHUB_REPOSITORY" --from site --prune prune.yaml
+        run: sh scripts/verify-archive.sh --repo "$GITHUB_REPOSITORY" --from site --prune prune.yaml
 
       # Before the key: the repository about to be signed (the baseline and what was built now) holds every package of
       # main/ at its current version for every ABI, and a file built now is the file that is already published.
@@ -442,7 +442,7 @@ jobs:
           [ "$have" = "$want" ] || { echo "::error::site/jailops.pub has sha256 $have, KEY_FINGERPRINT says $want"; exit 1; }
           for abi in FreeBSD:15:amd64 FreeBSD:15:aarch64; do pkgops verify "site/$abi/latest" --pubkey site/jailops.pub; done
           VERIFY_SITE_STRICT=1 sh scripts/verify-site.sh site
-          pkgops verify-archive --repo "$GITHUB_REPOSITORY" --from site --prune prune.yaml
+          sh scripts/verify-archive.sh --repo "$GITHUB_REPOSITORY" --from site --prune prune.yaml
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1
         with:
