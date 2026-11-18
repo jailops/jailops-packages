@@ -17,7 +17,7 @@ Remaining cost, honestly: the Pages artifact still contains the whole site on ev
 whole; the published site is limited to 1 GB), so the upload grows with the history even though the downloads no longer do.
 The next step if that gets close is `prune.yaml` (old versions leave the site, the Releases archive keeps them). Moving the
 package files out of Pages is NOT done now. The cache keys (`baseline-<PKGOPS_VERSION hash>-<run id>`, restored by prefix, so a new
-PkgOps version starts clean) and the restore/save behaviour are UNVERIFIED on GitHub; the entries are evicted after 7 days
+PkgOps version starts clean); the entries are evicted after 7 days
 unused or when the repository's cache quota is full, which only means a cold download.
 
 ## Verified against the signing key
