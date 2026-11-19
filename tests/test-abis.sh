@@ -56,7 +56,7 @@ check; eq "a commit SHA as the pin: refused" 1 $?
 has "says why" "PKGOPS_VERSION is '2aaeb59b381cfbdf1388dc5669a03b7cc50e6d1f': it must be a pkgops release tag vX.Y.Z" "$T/check.out"
 printf 'master\n' > "$R/PKGOPS_VERSION"
 check; eq "a branch as the pin: refused" 1 $?
-printf 'v0.3.1\n' > "$R/PKGOPS_VERSION"
+printf 'v0.3.2\n' > "$R/PKGOPS_VERSION"
 check; eq "a release tag: accepted" 0 $?
 cp "$T/pin" "$R/PKGOPS_VERSION"
 eq "the pin of the repository is a tag" 0 "$(tr -d ' \n\r' < "$HERE/PKGOPS_VERSION" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+'; echo $?)"
