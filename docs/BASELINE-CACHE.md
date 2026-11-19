@@ -1,7 +1,7 @@
 # The baseline cache
 
-Every run needs the whole published history as its baseline (a deploy replaces the whole site), and that history grows with
-every package version. Downloading all of it twice per run (build job, publish job) is wasteful, so `scripts/baseline.sh`
+Every run needs the published site as its baseline (a deploy replaces the whole site; it holds the newest two versions of every
+package, older ones are in the archive), and that grows with every package and release. Downloading all of it twice per run (build job, publish job) is wasteful, so `scripts/baseline.sh`
 restores the previously published `.pkg` files from the GitHub Actions cache (`.baseline-cache`, package files only, laid out
 like the site) and lets `pkgops fetch` download only what it does not already have. The cache is a pure optimisation:
 the live index (pkg.jailops.net, or the Releases archive) is fetched every time and alone decides what exists. `pkgops fetch`
@@ -14,7 +14,7 @@ The run prints `baseline summary: reused N, downloaded N, removed as stale N, by
 `tests/test-baseline.sh`.
 
 Remaining cost, honestly: the Pages artifact still contains the whole site on every deploy (GitHub Pages replaces the site as a
-whole; the published site is limited to 1 GB), so the upload grows with the history even though the downloads no longer do.
+whole; the published site is limited to 1 GB), so every upload is the size of the site.
 The retention policy keeps it small: the publish drops every version but the newest two from the site in the same run, and the Releases archive keeps them (docs/RETENTION.md). Moving the
 package files out of Pages is NOT done now. The cache keys (`baseline-<PKGOPS_VERSION hash>-<run id>`, restored by prefix, so a new
 PkgOps version starts clean); the entries are evicted after 7 days

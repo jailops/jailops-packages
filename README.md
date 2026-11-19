@@ -138,13 +138,14 @@ build job warns NOT VERIFIED and the publish job stops in the baseline step, bef
 Packages that are already published are never rebuilt: the published index is the only trigger (a package is built when its
 version is not in it), so a change to a script, the pin or a workflow rebuilds nothing, and a real change to a package
 bumps its version (`scripts/check-pkgops.sh` insists on it). Their files come from the baseline. A concurrency group (`publish`) serialises
-publishes. Nothing is deleted automatically: no `--keep`, no `--replace`. Builds are reproducible per package
+publishes. Nothing in the archive is deleted automatically and a published file never changes: no `--replace`. Older versions
+leave the site by the retention policy (docs/RETENTION.md), not the archive. Builds are reproducible per package
 (`SOURCE_DATE_EPOCH` = commit time of `main/<pkg>`), so a re-run never produces a second file for one version.
 
 ### Why the baseline is cached and why the cache cannot change the result
 
-Every run needs the whole published history as its baseline (a deploy replaces the whole site), and that history grows with
-every package version. Downloading all of it twice per run (build job, publish job) is wasteful, so `scripts/baseline.sh`
+Every run needs the published site as its baseline (a deploy replaces the whole site; it holds the newest two versions of every
+package, older ones are in the archive), and that grows with every package and release. Downloading all of it twice per run (build job, publish job) is wasteful, so `scripts/baseline.sh`
 restores the previously published `.pkg` files from the GitHub Actions cache (`.baseline-cache`, package files only, laid out
 like the site) and lets `pkgops fetch` download only what it does not already have. The cache is a pure optimisation:
 the live index (pkg.jailops.net, or the Releases archive) is fetched every time and alone decides what exists. `pkgops fetch`
@@ -157,7 +158,7 @@ The run prints `baseline summary: reused N, downloaded N, removed as stale N, by
 `tests/test-baseline.sh`.
 
 Remaining cost, honestly: the Pages artifact still contains the whole site on every deploy (GitHub Pages replaces the site as a
-whole; the published site is limited to 1 GB), so the upload grows with the history even though the downloads no longer do.
+whole; the published site is limited to 1 GB), so every upload is the size of the site.
 The retention policy ([docs/RETENTION.md](docs/RETENTION.md), `scripts/prune-plan.sh --generate`) keeps the site below that limit
 by itself: the publish keeps only the newest two versions of every package, older ones leave the site in the same run and
 stay in the Releases archive, and a site of 900 MB or more fails the publish before the deploy. Moving the
@@ -339,4 +340,4 @@ Environment: `SRC_<PKG>` (package name upper-cased, `-` to `_`), `JAILOPS_SOURCE
 - `jailops` source: make `jailops/jailops` public or keep the token; retire its own rsync/VM release pipeline when this repository is live.
 - Package names: `jailops`, `jailops-client`, `jailops-backupd`, `pkgops`, `isms`, `unisupply`, `age-plugin-sshagent` and `incus-sync` were searched in the official FreeBSD package repository on 2026-10-26 (pkg 2.8.4, FreeBSD 15.1) and none exists there; search again before the first publish, because the ports tree moves.
 - GitHub tarballs are not guaranteed byte-stable; a sha256 mismatch fails the build (re-pin deliberately).
-- Pages limits (1 GB site, bandwidth): a lot of history may need a different host; pruning or the archive restore path help.
+- Pages limits (1 GB site, bandwidth): the retention policy keeps the site small (docs/RETENTION.md); many more packages than today may need a different host (docs/RETENTION.md, "If the site still grows too fast").

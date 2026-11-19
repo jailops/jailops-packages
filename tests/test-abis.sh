@@ -61,6 +61,14 @@ check; eq "a release tag: accepted" 0 $?
 cp "$T/pin" "$R/PKGOPS_VERSION"
 eq "the pin of the repository is a tag" 0 "$(tr -d ' \n\r' < "$HERE/PKGOPS_VERSION" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+'; echo $?)"
 
+# the retention hint of pkgops-repo.yaml is the number of versions the site keeps (KEEP in scripts/prune-plan.sh)
+sed -i 's/keep: [0-9][0-9]*/keep: 5/' "$R/pkgops-repo.yaml"
+check; eq "retention.keep 5 against the site's KEEP: refused" 1 $?
+has "says why" "retention.keep (5) must equal the versions the site keeps, KEEP in scripts/prune-plan.sh (2)" "$T/check.out"
+cp "$HERE/pkgops-repo.yaml" "$R/pkgops-repo.yaml"
+check; eq "retention.keep as in the repository: accepted" 0 $?
+eq "the repository's hint is the site's KEEP" "2 2" "$(sed -n 's/^[[:space:]]*keep:[[:space:]]*\([0-9]*\).*/\1/p' "$HERE/pkgops-repo.yaml" | head -n 1) $(sed -n 's/^KEEP=${KEEP:-\([0-9]*\)}.*/\1/p' "$HERE/scripts/prune-plan.sh" | head -n 1)"
+
 # the update check compares the names with the official catalog of every major (amd64), from the same list
 sed -i 's/^abis:.*/abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64, FreeBSD:16:amd64, FreeBSD:16:aarch64]/' "$m"
 sed -i 's/^abis:.*/abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64, FreeBSD:16:amd64, FreeBSD:16:aarch64]/' "$R/pkgops-repo.yaml"
