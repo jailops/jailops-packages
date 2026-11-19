@@ -10,4 +10,5 @@ schema: 1
 abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]
 min_release: "15.1"
 retention:
-  keep: 5   # only a hint for `pkgops prune --plan`; nothing is ever deleted automatically
+  keep: 2   # a hint for pkgops (the default of `pkgops prune --plan` and what its admin UI offers): pkgops never deletes by it.
+            # It is the number of versions the site keeps (KEEP in scripts/prune-plan.sh); scripts/check-pkgops.sh keeps them equal.

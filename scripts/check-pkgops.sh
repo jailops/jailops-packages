@@ -21,6 +21,8 @@
 # Repository-wide:
 #   - pkgops-repo.yaml and prune.yaml say what the policy says (15.1, schema 1), and the abis of pkgops-repo.yaml are
 #     exactly the ABIs of the manifests (scripts/abis.sh): a new major is named in the manifests and in that one line
+#   - retention.keep of pkgops-repo.yaml (a hint for pkgops: it never deletes by it) equals KEEP of scripts/prune-plan.sh, the
+#     number of versions the site keeps
 #   - PKGOPS_VERSION is a release tag vX.Y.Z: the update check reads only a tag, so a commit SHA would fall behind unseen
 #   - no private key material is in the tree
 #   - every workflow that builds sets GOTOOLCHAIN: auto at workflow level; scripts that run go or pkgops build too
@@ -157,6 +159,9 @@ grep -Eq '^min_release:[[:space:]]*"?15\.1"?' "$REPO_ROOT/pkgops-repo.yaml" || f
 policy_abis=$(sed -n 's/^abis:[[:space:]]*\[\(.*\)\].*/\1/p' "$REPO_ROOT/pkgops-repo.yaml" | tr ',' '\n' | sed 's/[[:space:]]//g' | sort -u | tr '\n' ' ')
 manifest_abis=$(sh "$REPO_ROOT/scripts/abis.sh" 2>/dev/null | tr '\n' ' ' || true)
 [ -n "$policy_abis" ] && [ "$policy_abis" = "$manifest_abis" ] || fail "pkgops-repo.yaml: abis [$policy_abis] must be exactly the ABIs of the manifests [$manifest_abis]"
+policy_keep=$(sed -n 's/^[[:space:]]*keep:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$REPO_ROOT/pkgops-repo.yaml" | head -n 1)
+site_keep=$(sed -n 's/^KEEP=${KEEP:-\([0-9][0-9]*\)}.*/\1/p' "$REPO_ROOT/scripts/prune-plan.sh" | head -n 1)
+[ -n "$policy_keep" ] && [ "$policy_keep" = "$site_keep" ] || fail "pkgops-repo.yaml retention.keep ($policy_keep) must equal the versions the site keeps, KEEP in scripts/prune-plan.sh ($site_keep)"
 pin=$(tr -d ' \n\r' < "$REPO_ROOT/PKGOPS_VERSION" 2>/dev/null || true)
 echo "$pin" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail "PKGOPS_VERSION is '$pin': it must be a pkgops release tag vX.Y.Z (the update check reads only a tag; a commit would fall behind unseen)"
 grep -Eq '^schema:[[:space:]]*1' "$REPO_ROOT/pkgops-repo.yaml" || fail "pkgops-repo.yaml: schema: 1 missing"
