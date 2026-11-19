@@ -85,6 +85,14 @@ exact command and output. Bugs in a program itself belong to the program's own r
 
 # Maintainers
 
+Documentation for maintainers:
+
+- [docs/ADD-A-PACKAGE.md](docs/ADD-A-PACKAGE.md): add a package.
+- [docs/supply-chain.md](docs/supply-chain.md): the workflows, the signing key and what each may do.
+- [docs/RETENTION.md](docs/RETENTION.md): what stays on the site, what a host sees, rolling back.
+- [docs/BASELINE-CACHE.md](docs/BASELINE-CACHE.md): why the baseline is cached.
+- [docs/capacity.md](docs/capacity.md): how big the site is, what FreeBSD releases and ABIs do to it, what to do when it grows, and the object storage plan.
+
 ## How it works
 
 ```
