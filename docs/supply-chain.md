@@ -95,7 +95,7 @@ served; every one of them stays in the archive in GitHub Releases, which a prune
 newer versions of its package and ABI are in the repository to sign and it is a file of the baseline, which the cross-check
 before the key exists verified against the archive. After signing, `scripts/verify-site.sh` checks that every `jailops/...`
 dependency of every package on the site is on the site for the same ABI, by name. After the archive push the final site is
-checked again with `scripts/verify-archive.sh`: `pruned from Pages and not archived` fails the run before the upload, and a site
+checked again with `scripts/verify-archive.sh`: `pruned from Pages and not archived` fails the run before the upload (unless the file is recorded in `retired.yaml`, which only `scripts/archive-trim.sh` writes, by hand, never from a workflow), and a site
 of 900 MB or more fails it too (`scripts/check-site-size.sh`). The plan is in the job log, in the job summary and in the artifact
 `prune-plan`. `prune.yaml` is only for an administrator's extra entries. Rolling back is described in `docs/RETENTION.md`.
 

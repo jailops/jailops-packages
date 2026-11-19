@@ -288,6 +288,10 @@ for f in scripts/baseline.sh scripts/changed.sh scripts/verify-site.sh scripts/l
     fail "$f reads versions.json, which is informational and unsigned: decide from pkgops-index.json and the signed catalogs"
   fi
 done
+# the archive trim deletes from GitHub Releases: only its owner runs it, by hand (docs/RETENTION.md)
+if grep -rlq 'archive-trim' "$REPO_ROOT/.github" 2>/dev/null; then
+  fail ".github: archive-trim.sh deletes releases and is run by hand only (docs/RETENTION.md): no workflow or action may call it"
+fi
 ACTIONS_PIN_ENFORCE=${ACTIONS_PIN_ENFORCE:-1} sh "$REPO_ROOT/scripts/check-actions-pinned.sh" "$REPO_ROOT/.github" >&2 ||
   fail "a third-party action is not pinned to a commit SHA (docs/supply-chain.md)"
 
