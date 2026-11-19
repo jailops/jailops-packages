@@ -185,5 +185,12 @@ for needle in 'needs.publish.outputs.generated' 'pkgops-index.json?run=$GITHUB_R
   printf '%s\n' "$w" | grep -qF -e "$needle" && ok "the wait has: $needle" || bad "the wait lacks: $needle"
 done
 
+# the archive trim is never called by a workflow
+printf '      - run: sh scripts/archive-trim.sh --keep 2 --apply\n' >> "$R/.github/workflows/build-and-publish.yml"
+check; eq "a workflow that calls archive-trim.sh: refused" 1 $?
+has "says that it is run by hand" "archive-trim.sh deletes releases" "$T/check.out"
+reset
+check; eq "and passes again without it" 0 $?
+
 [ "$fails" = 0 ] && echo "test-workflow: all ok" || echo "test-workflow: $fails FAILED"
 exit $((fails > 0))

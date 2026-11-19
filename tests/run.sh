@@ -11,6 +11,7 @@ sh test-updates.sh
 sh test-versions-index.sh
 sh test-baseline.sh
 sh test-prune.sh
+sh test-archive-trim.sh
 sh test-changed.sh
 sh test-build-record.sh
 sh test-trust-block.sh
