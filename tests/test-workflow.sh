@@ -161,5 +161,29 @@ has "names the script" "scripts/changed.sh reads versions.json" "$T/check.out"
 (cd "$HERE" && cp scripts/changed.sh "$R/scripts/changed.sh")
 check; eq "and passes again without it" 0 $?
 
+# the deploy job waits for the live site (a green run means the index clients read says what the run published)
+edit '
+a = s.index("      # A green run means the site is live")
+b = s.index("  # Recovery:")
+s = s[:a] + s[b:]'
+check; eq "deploy without the wait for the live site: refused" 1 $?
+has "no wait: says why" "the job deploy must wait, after actions/deploy-pages and with a deadline" "$T/check.out"
+reset
+edit 's = s.replace("          end=$(( $(date +%s) + 720 ))   # 12 minutes: longer than the 600 s max-age of the site\n", "")'
+check; eq "a wait without a deadline: refused" 1 $?
+has "no deadline: says why" "the job deploy must wait" "$T/check.out"
+reset
+edit 's = s.replace("      generated: ${{ steps.generated.outputs.generated }}   # the `generated` time of the index that `deploy` waits to see live\n", "")'
+check; eq "publish without the generated output: refused" 1 $?
+has "no output: says why" "must report the generated time of its index as the output 'generated'" "$T/check.out"
+reset
+check; eq "and the workflow passes again" 0 $?
+
+# the wait polls the plain URL as well as the cache-busting one, and compares with the output of publish
+w=$(awk '/Wait until the live site serves the index of this run/ {on=1} on {print} /exit 1/ && on {n++} n == 2 {exit}' "$BP")
+for needle in 'needs.publish.outputs.generated' 'pkgops-index.json?run=$GITHUB_RUN_ID' '"$SITE_URL/pkgops-index.json"' 'sleep 20'; do
+  printf '%s\n' "$w" | grep -qF -e "$needle" && ok "the wait has: $needle" || bad "the wait lacks: $needle"
+done
+
 [ "$fails" = 0 ] && echo "test-workflow: all ok" || echo "test-workflow: $fails FAILED"
 exit $((fails > 0))

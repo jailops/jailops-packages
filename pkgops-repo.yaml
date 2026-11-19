@@ -4,6 +4,8 @@
 # FreeBSD 15.1 and later only. Every package manifest must say `min_release: "15.1"`. Do NOT put a package with
 # a higher min_release here: pkg checks it when it reads the catalog, so ONE such package makes `pkg update`
 # fail for the whole repository on every 15.1 host (docs/format.md of PkgOps, "Minimum release").
+# `abis` is exactly the union of the abis: lists of the manifests (sh scripts/abis.sh): scripts/check-pkgops.sh refuses a difference.
+# FreeBSD 16 is added here and in the manifests, both architectures.
 schema: 1
 abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]
 min_release: "15.1"

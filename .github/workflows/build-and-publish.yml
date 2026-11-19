@@ -162,7 +162,7 @@ jobs:
           # again and verifies it, so only a real assembly is verified here.
           if [ -n "$(find dist -name '*.pkg' -print -quit)" ]; then
             pkgops repo --repo site --policy pkgops-repo.yaml --prune prune.yaml dist
-            for abi in FreeBSD:15:amd64 FreeBSD:15:aarch64; do pkgops verify "site/$abi/latest"; done
+            for abi in $(sh scripts/abis.sh); do pkgops verify "site/$abi/latest"; done
             sh scripts/verify-site.sh site
             python3 scripts/versions-index.py site   # the index for web pages, from these (unsigned) catalogs: tested here
           else
@@ -241,6 +241,8 @@ jobs:
     environment: signing
     permissions:
       contents: write   # the archive: one GitHub release per package version
+    outputs:
+      generated: ${{ steps.generated.outputs.generated }}   # the `generated` time of the index that `deploy` waits to see live
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with:
@@ -365,7 +367,8 @@ jobs:
       - name: Verify the signed repository
         run: |
           set -eu
-          for abi in FreeBSD:15:amd64 FreeBSD:15:aarch64; do pkgops verify "site/$abi/latest" --pubkey site/jailops.pub; done
+          # every ABI that a manifest names (scripts/abis.sh), each with its signed catalog
+          for abi in $(sh scripts/abis.sh); do pkgops verify "site/$abi/latest" --pubkey site/jailops.pub; done
           VERIFY_SITE_STRICT=1 sh scripts/verify-site.sh site
 
       # A missed prune never reaches the deploy: the site stays below 900 MB (GitHub Pages publishes at most about 1 GB); a
@@ -394,6 +397,14 @@ jobs:
       - name: Cache the published package files for the next run (.baseline-cache only; never the key or the site)
         run: sh scripts/baseline.sh --refresh-cache site
 
+      - id: generated
+        name: The generated time of the index that goes live (the deploy job waits for it)
+        run: |
+          set -eu
+          g=$(jq -r '.generated // empty' site/pkgops-index.json)
+          [ -n "$g" ] || { echo "::error::site/pkgops-index.json has no generated time"; exit 1; }
+          echo "generated=$g" >> "$GITHUB_OUTPUT"
+
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3.0.1
         with:
           path: site
@@ -421,6 +432,29 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e   # v4.0.5
+
+      # A green run means the site is live: the index that clients and the next run's baseline read says what this run
+      # published. The URL with `?run=` goes round the CDN cache when the CDN honours a query string (it may ignore it);
+      # the plain URL is what `pkgops fetch` reads, and it is served from the cache for up to 600 s (max-age), so the wait
+      # covers that too. Two bumps merged back to back therefore cannot read the index of before the first one.
+      - name: Wait until the live site serves the index of this run
+        env:
+          WANT: ${{ needs.publish.outputs.generated }}
+        run: |
+          set -eu
+          [ -n "$WANT" ] || { echo "::error::the publish job did not report the generated time of its index"; exit 1; }
+          end=$(( $(date +%s) + 720 ))   # 12 minutes: longer than the 600 s max-age of the site
+          got_q=; got_p=
+          while :; do
+            got_q=$(curl -fsS --max-time 20 "$SITE_URL/pkgops-index.json?run=$GITHUB_RUN_ID" | jq -r '.generated // empty' 2>/dev/null || true)
+            got_p=$(curl -fsS --max-time 20 "$SITE_URL/pkgops-index.json" | jq -r '.generated // empty' 2>/dev/null || true)
+            if [ "$got_q" = "$WANT" ] && [ "$got_p" = "$WANT" ]; then echo "live: $SITE_URL serves generated $WANT"; exit 0; fi
+            [ "$(date +%s)" -lt "$end" ] || break
+            echo "waiting: the site serves '${got_q:-?}' (with ?run=) and '${got_p:-?}' (plain), this run published '$WANT'"
+            sleep 20
+          done
+          echo "::error::$SITE_URL still serves generated '${got_q:-?}' (with ?run=) and '${got_p:-?}' (plain) after 12 minutes; this run published '$WANT'. The deploy itself succeeded: check the Pages deployment and wait for the cache before merging another bump."
+          exit 1
 
   # Recovery: the archive is ahead of Pages (a publish run archived a package and its deploy did not run). Deploys the
   # signed site that an earlier publish run of master already built, verified and archived: no build, no signing, no key.
@@ -483,7 +517,15 @@ jobs:
           want=$(tr -d ' \n\r' < KEY_FINGERPRINT)
           have=$(sha256sum site/jailops.pub | cut -d' ' -f1)
           [ "$have" = "$want" ] || { echo "::error::site/jailops.pub has sha256 $have, KEY_FINGERPRINT says $want"; exit 1; }
-          for abi in FreeBSD:15:amd64 FreeBSD:15:aarch64; do pkgops verify "site/$abi/latest" --pubkey site/jailops.pub; done
+          # The checkout is the commit of the run being redeployed, which may predate scripts/abis.sh: the ABIs are the ones
+          # the artifact holds, and verify-site.sh below compares them with that commit's manifests.
+          n=0
+          for d in site/FreeBSD:*; do
+            [ -d "$d" ] || continue
+            pkgops verify "$d/latest" --pubkey site/jailops.pub
+            n=$((n + 1))
+          done
+          [ "$n" -gt 0 ] || { echo "::error::the site holds no FreeBSD ABI directory"; exit 1; }
           VERIFY_SITE_STRICT=1 sh scripts/verify-site.sh site
           sh scripts/verify-archive.sh --repo "$GITHUB_REPOSITORY" --from site --prune prune.yaml
 

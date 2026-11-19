@@ -5,7 +5,8 @@
 # Exit 1 with one "FAIL" line per problem. Checks, per package under main/:
 #   - the directory name is the package name; pkgops.yaml and upstream.yaml exist
 #   - min_release is exactly "15.1" (a higher one would break `pkg update` for the WHOLE repository on 15.1 hosts),
-#     both ABIs are listed in abis:, no single abi:
+#     abis: lists FreeBSD:N:amd64 and FreeBSD:N:aarch64 for every major N it names (never one architecture alone), no
+#     single abi:
 #   - origin jailops/<name>, comment, www, maintainer packages@jailops.net, license set
 #   - every dependency has name, origin and a version; a dependency on a package of the same group has that
 #     package's upstream version (jailops -> jailops-client, and it must exist). A dependency on a package of another
@@ -18,7 +19,9 @@
 #   - the packages of one group share one upstream version
 #   - files named in pkgops.yaml outside src/ and build/ exist
 # Repository-wide:
-#   - pkgops-repo.yaml and prune.yaml say what the policy says (15.1, both ABIs, schema 1)
+#   - pkgops-repo.yaml and prune.yaml say what the policy says (15.1, schema 1), and the abis of pkgops-repo.yaml are
+#     exactly the ABIs of the manifests (scripts/abis.sh): a new major is named in the manifests and in that one line
+#   - PKGOPS_VERSION is a release tag vX.Y.Z: the update check reads only a tag, so a commit SHA would fall behind unseen
 #   - no private key material is in the tree
 #   - every workflow that builds sets GOTOOLCHAIN: auto at workflow level; scripts that run go or pkgops build too
 #   - check-updates.yml: calls only scripts that exist, uses no secret except UPDATE_TOKEN and JAILOPS_SOURCE_TOKEN (UPDATE_TOKEN
@@ -63,7 +66,15 @@ for p in $pkgs; do
   grep -Eq '^min_osversion:' "$m" && fail "$p: use min_release: \"15.1\", not min_osversion"
   grep -Eq '^abi:' "$m" && fail "$p: single 'abi:' is not allowed, list both in abis:"
   abis=$(abis_of "$p" | sort | tr '\n' ' ')
-  [ "$abis" = "FreeBSD:15:aarch64 FreeBSD:15:amd64 " ] || fail "$p: abis must be exactly [FreeBSD:15:amd64, FreeBSD:15:aarch64], got: $abis"
+  [ -n "$abis" ] || fail "$p: abis: is missing or empty"
+  for a in $abis; do
+    echo "$a" | grep -Eq '^FreeBSD:[0-9]+:(amd64|aarch64)$' || fail "$p: abi '$a' must look like FreeBSD:15:amd64 or FreeBSD:15:aarch64"
+  done
+  for major in $(printf '%s\n' $abis | sed -n 's/^FreeBSD:\([0-9][0-9]*\):.*/\1/p' | sort -u); do
+    for arch in amd64 aarch64; do
+      printf '%s\n' $abis | grep -qx "FreeBSD:$major:$arch" || fail "$p: abis names FreeBSD:$major but not FreeBSD:$major:$arch (list both architectures of a major)"
+    done
+  done
 
   [ "$(mf_get "$p" origin)" = "jailops/$p" ] || fail "$p: origin must be jailops/$p (names that never collide with a FreeBSD port), got '$(mf_get "$p" origin)'"
   [ -n "$(mf_get "$p" comment)" ] || fail "$p: comment is empty"
@@ -143,7 +154,11 @@ done
 
 # policy files
 grep -Eq '^min_release:[[:space:]]*"?15\.1"?' "$REPO_ROOT/pkgops-repo.yaml" || fail "pkgops-repo.yaml: min_release must be 15.1"
-grep -q 'FreeBSD:15:amd64' "$REPO_ROOT/pkgops-repo.yaml" && grep -q 'FreeBSD:15:aarch64' "$REPO_ROOT/pkgops-repo.yaml" || fail "pkgops-repo.yaml: abis must list FreeBSD:15:amd64 and FreeBSD:15:aarch64"
+policy_abis=$(sed -n 's/^abis:[[:space:]]*\[\(.*\)\].*/\1/p' "$REPO_ROOT/pkgops-repo.yaml" | tr ',' '\n' | sed 's/[[:space:]]//g' | sort -u | tr '\n' ' ')
+manifest_abis=$(sh "$REPO_ROOT/scripts/abis.sh" 2>/dev/null | tr '\n' ' ' || true)
+[ -n "$policy_abis" ] && [ "$policy_abis" = "$manifest_abis" ] || fail "pkgops-repo.yaml: abis [$policy_abis] must be exactly the ABIs of the manifests [$manifest_abis]"
+pin=$(tr -d ' \n\r' < "$REPO_ROOT/PKGOPS_VERSION" 2>/dev/null || true)
+echo "$pin" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail "PKGOPS_VERSION is '$pin': it must be a pkgops release tag vX.Y.Z (the update check reads only a tag; a commit would fall behind unseen)"
 grep -Eq '^schema:[[:space:]]*1' "$REPO_ROOT/pkgops-repo.yaml" || fail "pkgops-repo.yaml: schema: 1 missing"
 grep -Eq '^schema:[[:space:]]*1' "$REPO_ROOT/prune.yaml" || fail "prune.yaml: schema: 1 missing"
 grep -Eq '^entries:' "$REPO_ROOT/prune.yaml" || fail "prune.yaml: entries: missing"
@@ -232,6 +247,14 @@ if [ -d "$wf" ]; then
     # the recovery job verifies the artifact of an earlier run against the commit that run was built from
     awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "redeploy:" && /^          ref: \$\{\{ steps\.run\.outputs\.sha \}\}/ {ok=1} END {exit ok?0:1}' "$bp" ||
       fail "build-and-publish.yml: the job redeploy must check out 'ref: \${{ steps.run.outputs.sha }}' (the commit of the run it redeploys)"
+    # a green run means the site is live: after deploy-pages the deploy job waits, with a deadline, until the index that
+    # clients read (with a cache-busting query, and plain) has the generated time that the publish job reported
+    awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "publish:" && /^      generated: \$\{\{ steps\.generated\.outputs\.generated \}\}/ {ok=1} END {exit ok?0:1}' "$bp" ||
+      fail "build-and-publish.yml: the job publish must report the generated time of its index as the output 'generated' (the deploy job waits for it)"
+    dw=$(awk '/^  [a-z_-]+:[[:space:]]*$/ {job=$1} job == "deploy:" && /actions\/deploy-pages@/ && !d {d=NR} job == "deploy:" && /Wait until the live site serves the index of this run/ && !w {w=NR} job == "deploy:" && /needs\.publish\.outputs\.generated/ {g=1} job == "deploy:" && /pkgops-index\.json\?run=/ {q=1} job == "deploy:" && /end=\$\(\( \$\(date \+%s\) \+ [0-9]+ \)\)/ {b=1} END {printf "%d %d %d %d %d", d, w, g, q, b}' "$bp")
+    dd=$(echo "$dw" | cut -d' ' -f1); dwait=$(echo "$dw" | cut -d' ' -f2)
+    { [ "$dd" -gt 0 ] && [ "$dwait" -gt "$dd" ] && [ "$(echo "$dw" | cut -d' ' -f3)" = 1 ] && [ "$(echo "$dw" | cut -d' ' -f4)" = 1 ] && [ "$(echo "$dw" | cut -d' ' -f5)" = 1 ]; } ||
+      fail "build-and-publish.yml: the job deploy must wait, after actions/deploy-pages and with a deadline, until pkgops-index.json (also with ?run=) serves needs.publish.outputs.generated"
     # the retention policy is applied by the publish job itself: the plan is made after the baseline and the cross-check
     # with the archive and before the key exists, the signing step applies it, the site is kept below 900 MB, and the
     # final site is verified against the archive before the upload

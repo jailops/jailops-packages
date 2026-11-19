@@ -6,6 +6,10 @@ Signed FreeBSD packages for JailOps and a few related tools, built with [PkgOps]
 
 - **FreeBSD 15.1 and later only**, `amd64` and `aarch64` (`FreeBSD:15:amd64`, `FreeBSD:15:aarch64`). Every package
   declares a minimum release of 15.1; pkg itself refuses it on 15.0.
+- The ABIs served are the ones the manifests name (`sh scripts/abis.sh` prints them): FreeBSD 15 until a manifest lists
+  `FreeBSD:16:amd64` and `FreeBSD:16:aarch64`. A new major is those two names in the manifests and in the `abis:` line of
+  `pkgops-repo.yaml`, which `scripts/check-pkgops.sh` keeps equal to that list; the workflows and the update check read
+  the list, so nothing else changes. 15.1 and 15.2 share one ABI, one set of packages.
 
 ## Use it
 
@@ -123,7 +127,10 @@ A push to `master` runs `build-and-publish.yml`:
    `scripts/verify-site.sh` (no package vanished, strict: a package that is not ready fails too), `scripts/versions-index.py` (`versions.json`, below), `pkgops archive
    push` (every `.pkg` into GitHub Releases), and the site as the Pages artifact. Order, permissions per job and action pins are checked by `scripts/check-pkgops.sh`
    ([docs/supply-chain.md](docs/supply-chain.md)).
-3. **deploy** job: `actions/deploy-pages`. The site is an artifact; no binary is ever in git or a `gh-pages` branch.
+3. **deploy** job: `actions/deploy-pages`, then a wait (at most 12 minutes) until `pkgops-index.json` on the live site, with
+   and without a cache-busting query, has the `generated` time of the index this run published. A green run therefore means
+   the site is live, and the baseline of the next run cannot read an older index. The site is an artifact; no binary is ever
+   in git or a `gh-pages` branch.
 
 **`PKGOPS_VERSION` must be a pkgops release with `fetch --pubkey`** (the first one after 0.2.0). With an older pin the
 build job warns NOT VERIFIED and the publish job stops in the baseline step, before the key exists, and publishes nothing.
@@ -298,7 +305,7 @@ separate, confirmed command (`pkgops archive prune ... --confirm "delete from ar
 6. Optional: `UPDATE_TOKEN`, a repository secret (a token that may open PRs and start workflows, for `check-updates.yml`), and, only
    for a package whose source is private, the Environment `source` (deployment branches `master` only) with the secret
    `JAILOPS_SOURCE_TOKEN` in it.
-7. Publish the pkgops tag `v0.1.0` in `jailops/jailops-pkgops` (or put a commit SHA in `PKGOPS_VERSION`), tag `jailops/jailops` `v0.1.0`
+7. Publish the pkgops tag `v0.1.0` in `jailops/jailops-pkgops` (`PKGOPS_VERSION` is always a release tag), tag `jailops/jailops` `v0.1.0`
    and run `sh scripts/bump-version.sh --pin pkgops jailops-client jailops jailops-backupd`.
 8. First publish only: Actions, "Build and publish", Run workflow with `first_run` = true (there is no site and no archive to
    take a baseline from). Every later run without it fails when no baseline can be fetched, so nothing can vanish.
