@@ -271,7 +271,9 @@ run_all() {
 }
 
 run_collisions() {
-  abis=${FREEBSD_ABIS:-FreeBSD:15:amd64}
+  # one architecture per major is enough for the names: the ABIs of the manifests (scripts/abis.sh), amd64 only
+  abis=${FREEBSD_ABIS:-$(sh "$REPO_ROOT/scripts/abis.sh" --arch amd64)}
+  [ -n "$abis" ] || die "no ABI to compare against (scripts/abis.sh found none in the manifests)"
   all_pkgs > "$WORK/ours"
   rc=0
   printf '## Package names against the official FreeBSD repository\n\n' >> "${SUMMARY_FILE:-${GITHUB_STEP_SUMMARY:-/dev/stdout}}"

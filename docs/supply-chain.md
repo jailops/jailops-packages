@@ -65,13 +65,10 @@ and write `uses: OWNER/REPO@<40-hex SHA>   # vX.Y.Z`.
 
 ### pkgops itself
 
-The publish job runs pkgops with the key. `PKGOPS_VERSION` pins it to a release tag, and the release archive is checked
-against that release's `checksums.txt`: both come from the same place, so the tag is the trust. For a pin that cannot
-move, put the commit in `PKGOPS_VERSION` (`setup-pkgops` then builds pkgops from that commit):
-
-```sh
-gh api repos/jailops/jailops-pkgops/commits/vX.Y.Z --jq .sha > PKGOPS_VERSION
-```
+The publish job runs pkgops with the key. `PKGOPS_VERSION` pins it to a release tag `vX.Y.Z`, and the release archive is
+checked against that release's `checksums.txt`: both come from the same place, so the tag is the trust. The pin is always a
+tag: the update check reads only a tag, so a newer pkgops release opens a bump pull request (read its changelog first: the
+code runs next to the key), and `scripts/check-pkgops.sh` refuses a commit or a branch there.
 
 **`PKGOPS_VERSION` must name a pkgops release that has `fetch --pubkey`** (the first release after 0.2.0). With an
 older one the build job warns (NOT VERIFIED) and the publish job stops in the baseline step, before the key, and
@@ -101,6 +98,18 @@ dependency of every package on the site is on the site for the same ABI, by name
 checked again with `scripts/verify-archive.sh`: `pruned from Pages and not archived` fails the run before the upload, and a site
 of 900 MB or more fails it too (`scripts/check-site-size.sh`). The plan is in the job log, in the job summary and in the artifact
 `prune-plan`. `prune.yaml` is only for an administrator's extra entries. Rolling back is described in `docs/RETENTION.md`.
+
+## A green run means the site is live
+
+After `actions/deploy-pages` the `deploy` job waits, for at most 12 minutes, until `pkgops-index.json` on the live site
+has the `generated` time that the publish job reported (the job output `generated`, read from the index it signed). It asks
+twice per round: with `?run=<run id>`, which goes round the CDN cache when the CDN honours a query string, and the plain
+URL, which is what `pkgops fetch` reads and which is served from the cache for up to 600 s (`max-age`). When both say the
+new time the run ends green; when they do not, it fails with the two times it saw, and the deploy itself has already
+succeeded: wait for the cache, check the Pages deployment, and merge no other bump before that. Two bumps merged back to
+back are serialized by the `publish` concurrency group, and this wait makes the second one start from the index of the first.
+`scripts/check-pkgops.sh` requires the wait, its deadline and the job output. The baseline step of the publish job does not
+add a query string to its request.
 
 ## Recovery: the archive is ahead of Pages
 

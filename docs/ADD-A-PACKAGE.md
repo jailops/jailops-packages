@@ -59,7 +59,7 @@ desc: Longer text
 www: https://github.com/owner/mytool
 maintainer: packages@jailops.net
 license: BSD2CLAUSE            # pkg names: BSD2CLAUSE, BSD3CLAUSE, APACHE20, MIT, ...
-abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]     # both; never a single abi:
+abis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]     # both architectures of every major named; never a single abi:
 min_release: "15.1"            # exactly 15.1: a higher value would break `pkg update` for every 15.1 host
 build:
   type: go

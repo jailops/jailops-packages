@@ -46,7 +46,7 @@ URL="http://127.0.0.1:$(cat "$T/port")"
 
 mkpkg() { # NAME VERSION SHA [NOTE]
   mkdir -p "$ROOT/main/$1"
-  printf 'name: %s\nversion: %s\n' "$1" "$2" > "$ROOT/main/$1/pkgops.yaml"
+  printf 'name: %s\nversion: %s\nabis: [FreeBSD:15:amd64, FreeBSD:15:aarch64]\n' "$1" "$2" > "$ROOT/main/$1/pkgops.yaml"
   printf 'group: %s\nrepo: owner/%s\ntag_prefix: v\ntarball: %s/tarball/${tag}\nstrip_components: 1\nsha256: %s\ntoken_env:\nprebuild:\n' "$1" "$1" "$URL" "$3" > "$ROOT/main/$1/upstream.yaml"
   [ -z "${4:-}" ] || echo "bump_note: $4" >> "$ROOT/main/$1/upstream.yaml"
 }
