@@ -4,6 +4,6 @@ repo: jailops/jailops-pkgops
 tag_prefix: v
 tarball: https://github.com/${repo}/archive/refs/tags/${tag}.tar.gz
 strip_components: 1
-sha256: 97b0568c4f2f2f1ca69a32043f337cdd496484585c00eb54190b2a1b79d16bdc
+sha256: e11c9a8362892a66a2ea575343c8680c80da766461997e8177ecd4fb4fcd38d7
 token_env:
 prebuild:                            # the committed web UI (internal/webui/dist) is embedded: no Node step
