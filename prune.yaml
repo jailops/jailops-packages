@@ -3,39 +3,4 @@
 # run, so that only the newest two versions of every package and ABI stay on the site (docs/RETENTION.md). It adds its entries to
 # this file in the job and applies the result; nothing is committed. Nothing is deleted from the archive (GitHub Releases).
 schema: 1
-entries:
-  # jailops-apps was removed from this repository: no new install may find it (the files stay in the archive)
-  - abi: FreeBSD:15:amd64
-    name: jailops-apps
-    version: 0.4.2
-    force: true
-  - abi: FreeBSD:15:amd64
-    name: jailops-apps
-    version: 0.4.3
-    force: true
-  - abi: FreeBSD:15:aarch64
-    name: jailops-apps
-    version: 0.4.2
-    force: true
-  - abi: FreeBSD:15:aarch64
-    name: jailops-apps
-    version: 0.4.3
-    force: true
-  # the versions of jailops that still depend on the removed package leave the site with it: the publish job refuses a
-  # site where a package depends on one that is not there
-  - abi: FreeBSD:15:amd64
-    name: jailops
-    version: 0.9.3
-    force: true
-  - abi: FreeBSD:15:amd64
-    name: jailops
-    version: 0.9.4
-    force: true
-  - abi: FreeBSD:15:aarch64
-    name: jailops
-    version: 0.9.3
-    force: true
-  - abi: FreeBSD:15:aarch64
-    name: jailops
-    version: 0.9.4
-    force: true
+entries: []
