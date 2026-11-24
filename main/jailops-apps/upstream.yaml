@@ -1,7 +1,0 @@
-# This package has no upstream: it is built from the files of this directory (apps/, LICENSE.md), without a download,
-# so there is no tarball, no sha256 and nothing for check-updates.yml to check. Read by scripts/*.sh.
-# Its version is `version:` in pkgops.yaml, raised by hand in the pull request that changes apps/ (or
-# sh scripts/bump-version.sh 0.5.0 jailops-apps); a published version is never rebuilt. scripts/validate-apps.sh checks
-# the definitions with `jailops app validate` before the package is built.
-source: local
-prebuild:

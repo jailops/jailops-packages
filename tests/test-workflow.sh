@@ -106,10 +106,6 @@ reset
 sed -i 's/^token_env:.*/token_env: SOME_OTHER_TOKEN/' "$R/main/unisupply/upstream.yaml"
 check; eq "a token_env other than JAILOPS_SOURCE_TOKEN: refused" 1 $?
 cp "$HERE/main/unisupply/upstream.yaml" "$R/main/unisupply/upstream.yaml"
-sed -i 's/^token_env:.*/token_env: JAILOPS_SOURCE_TOKEN/' "$R/main/jailops/upstream.yaml"
-check; eq "the source of the catalog validator behind a token: refused" 1 $?
-has "jailops token: says why" "token_env must be empty" "$T/check.out"
-cp "$HERE/main/jailops/upstream.yaml" "$R/main/jailops/upstream.yaml"
 check; eq "and the repository passes again" 0 $?
 
 # the retention policy is applied by the publish job itself

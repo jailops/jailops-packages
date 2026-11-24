@@ -1,7 +1,7 @@
 #!/bin/sh
 # build-pkg.sh PKG[:ABI,ABI]...
 #
-# For each package: fetch the source (nothing for source: local), run the prebuild steps, then
+# For each package: fetch the source, run the prebuild steps, then
 # `pkgops build -f main/PKG/pkgops.yaml --abi ABIS -o dist` (ABIS: the ones after the colon, else all).
 # Output: dist/<ABI>/<name>-<version>.pkg, a list of what was built in dist/built.txt, and the build record
 # dist/records/$BUILD_LABEL.json (BUILD_LABEL, default build): the commit, the toolchain and the name, version, ABI,
@@ -61,8 +61,7 @@ for entry in "$@"; do
   for a in $(echo "$abis" | tr ',' ' '); do
     f="$a/$pkg-$ver.pkg"
     [ -f "$OUT/$f" ] || die "$pkg: pkgops build made no $OUT/$f"
-    if is_local "$pkg"; then src=$(printf '{"local":"%s"}' "$(git -C "$REPO_ROOT" rev-parse "HEAD:main/$pkg" 2>/dev/null || echo unknown)")
-    else src=$(printf '{"url":"%s","sha256":"%s"}' "$(tarball_url "$pkg")" "$(up_get "$pkg" sha256)"); fi
+    src=$(printf '{"url":"%s","sha256":"%s"}' "$(tarball_url "$pkg")" "$(up_get "$pkg" sha256)")
     printf '{"name":"%s","version":"%s","abi":"%s","file":"%s","size":%s,"sha256":"%s","source":%s}\n' \
       "$pkg" "$ver" "$a" "$f" "$(wc -c < "$OUT/$f" | tr -d ' ')" "$(sha256_of "$OUT/$f")" "$src" >> "$rec"
   done

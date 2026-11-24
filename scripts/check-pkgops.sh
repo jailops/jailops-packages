@@ -10,12 +10,11 @@
 #   - origin jailops/<name>, comment, www, maintainer packages@jailops.net, license set
 #   - every dependency has name, origin and a version; a dependency on a package of the same group has that
 #     package's upstream version (jailops -> jailops-client, and it must exist). A dependency on a package of another
-#     group (jailops -> jailops-apps) is not kept in step: pkg resolves dependencies by name, so any version of it
-#     satisfies the dependency, and the version only records what it was written against
+#     group is not kept in step: pkg resolves dependencies by name, so any version of it satisfies the dependency,
+#     and the version only records what it was written against
 #   - upstream.yaml: group repo tag_prefix tarball strip_components sha256 token_env prebuild; sha256 is 64 hex or PENDING
 #     (--strict: PENDING fails); prebuild steps exist; token_env is empty or JAILOPS_SOURCE_TOKEN, which only the
-#     master-only job `build-private` receives. Or `source: local`
-#     (the package is built from its own directory): then only prebuild, no upstream keys, and no file from src/
+#     master-only job `build-private` receives
 #   - the packages of one group share one upstream version
 #   - files named in pkgops.yaml outside src/ and build/ exist
 # Repository-wide:
@@ -106,29 +105,20 @@ for p in $pkgs; do
   fi
 
   src=$(up_get "$p" source)
-  if [ "$src" = local ]; then
-    # built from this directory: nothing to download, pin or check for updates
-    for k in group repo tag_prefix tarball strip_components sha256 token_env bump_note; do
-      grep -Eq "^$k:" "$u" && fail "$p: upstream.yaml says source: local, so '$k:' has no meaning there; remove it"
-    done
-    grep -Eq "^prebuild:" "$u" || fail "$p: upstream.yaml has no 'prebuild:' key"
-    sed -n 's/^[[:space:]-]*source:[[:space:]]*\([^[:space:]#]*\).*/\1/p' "$m" | grep -q '^src/' &&
-      fail "$p: source: local, but pkgops.yaml takes files from src/, which only a download fills"
+  [ -z "$src" ] || fail "$p: upstream.yaml has a 'source:' key ('$src'): every package is built from a tarball"
+  for k in group repo tag_prefix tarball strip_components sha256 token_env prebuild; do
+    grep -Eq "^$k:" "$u" || fail "$p: upstream.yaml has no '$k:' key"
+  done
+  echo "$(up_get "$p" repo)" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || fail "$p: upstream repo must be owner/name"
+  up_get "$p" tarball | grep -Eq '\$\{(tag|version)\}' || fail "$p: upstream tarball must contain \${tag} or \${version}"
+  s=$(up_get "$p" sha256)
+  if [ "$s" = PENDING ]; then
+    [ -z "$STRICT" ] || fail "$p: sha256 is PENDING (pin it: scripts/bump-version.sh --pin $p)"
+    echo "note $p: sha256 PENDING, the package is skipped by the build until it is pinned" >&2
   else
-    [ -z "$src" ] || fail "$p: upstream.yaml source: '$src' is unknown (local, or no source: key for a tarball)"
-    for k in group repo tag_prefix tarball strip_components sha256 token_env prebuild; do
-      grep -Eq "^$k:" "$u" || fail "$p: upstream.yaml has no '$k:' key"
-    done
-    echo "$(up_get "$p" repo)" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || fail "$p: upstream repo must be owner/name"
-    up_get "$p" tarball | grep -Eq '\$\{(tag|version)\}' || fail "$p: upstream tarball must contain \${tag} or \${version}"
-    s=$(up_get "$p" sha256)
-    if [ "$s" = PENDING ]; then
-      [ -z "$STRICT" ] || fail "$p: sha256 is PENDING (pin it: scripts/bump-version.sh --pin $p)"
-      echo "note $p: sha256 PENDING, the package is skipped by the build until it is pinned" >&2
-    else
-      is_sha256 "$s" || fail "$p: sha256 '$s' is neither 64 hex digits nor PENDING"
-    fi
+    is_sha256 "$s" || fail "$p: sha256 '$s' is neither 64 hex digits nor PENDING"
   fi
+
   known=$(sh "$REPO_ROOT/scripts/prebuild.sh" --list)
   for step in $(up_get "$p" prebuild); do
     case " $known " in *" $step "*) ;; *) fail "$p: unknown prebuild step '$step'" ;; esac
@@ -136,9 +126,6 @@ for p in $pkgs; do
   te=$(up_get "$p" token_env)
   if [ -n "$te" ] && [ "$te" != JAILOPS_SOURCE_TOKEN ]; then
     fail "$p: token_env $te: the only source token the build jobs know is JAILOPS_SOURCE_TOKEN (job build-private)"
-  fi
-  if [ "$p" = jailops ] && [ -n "$te" ]; then
-    fail "jailops: token_env must be empty: scripts/validate-apps.sh builds the jailops client in a job that has no secret"
   fi
 
   # files that come from this directory (not from the fetched source or the build) must exist
@@ -353,7 +340,6 @@ if [ -n "$BASE" ] && git -C "$REPO_ROOT" cat-file -e "$BASE^{commit}" 2>/dev/nul
       # index cannot be read (offline, no jq, no SITE_URL) the check stays strict.
       is_published "$p" "$new" || continue
       how="scripts/bump-version.sh --revision $p"
-      is_local "$p" && how="raise version: in main/$p/pkgops.yaml (the minor for a new app, the patch for a fix)"
       fail "$p: main/$p changed ($changed) but the version is still $old: a published version is immutable. Bump it: $how"
     }
   done

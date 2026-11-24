@@ -82,7 +82,7 @@ an empty `token_env`; a package with a `token_env` is built by `build-private` o
 that it was not built). A pull request can change a script and a workflow, so a secret the job could read would be a
 secret the pull request could read: only an Environment limited to `master` keeps it out. `build-pkg.sh` runs the prebuild
 steps (`npm ci --ignore-scripts`, the web build) and `pkgops build` without the token even there. `token_env` is empty or
-`JAILOPS_SOURCE_TOKEN`; the source of `jailops`, which `scripts/validate-apps.sh` builds in `build`, has an empty one.
+`JAILOPS_SOURCE_TOKEN`.
 `check-pkgops.sh` checks all of this. `token_env` must be a plain variable name (`[A-Z_][A-Z0-9_]*`); anything else stops
 the run before it is expanded. The checkouts in `check-updates.yml` do not keep the workflow token in `.git`.
 

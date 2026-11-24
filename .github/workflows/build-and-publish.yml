@@ -3,7 +3,7 @@ name: Build and publish
 # FreeBSD 15.1+ packages for amd64 and aarch64, built with PkgOps (the only packaging tool here), published as a signed
 # pkg repository to GitHub Pages at https://pkg.jailops.net/${ABI}/latest. UNVERIFIED: this workflow has not run on GitHub.
 #
-#   pull request / other branch: check, baseline, validate the app catalog, build, assemble an UNSIGNED repository in a
+#   pull request / other branch: check, baseline, build, assemble an UNSIGNED repository in a
 #                                temp dir and verify it. Public inputs only: no secret, no signing, no publishing.
 #                                A package whose source needs a token is built on master only.
 #   push to master:              the same, strict (a package that cannot be built stops the run), then `build-private`
@@ -130,14 +130,6 @@ jobs:
           echo "  here (no secret): ${public:-none}"
           echo "  with the source token (master only): ${private:-none}"
           { echo "pkgs=$public"; echo "private=$private"; } >> "$GITHUB_OUTPUT"
-
-      # The catalog's definitions are checked with the daemon's own validator before jailops-apps is built, and when
-      # jailops is built (a new daemon must still accept them). The client is built from the jailops source this repository
-      # packages. Until that release has `jailops app validate`, the step prints a loud NOT VALIDATED warning and goes on;
-      # from then on it enforces itself (scripts/validate-apps.sh).
-      - name: Validate the app catalog (jailops app validate)
-        if: contains(steps.changed.outputs.pkgs, 'jailops-apps') || contains(steps.changed.outputs.pkgs, 'jailops:')
-        run: sh scripts/validate-apps.sh
 
       - name: Build
         if: steps.changed.outputs.pkgs != ''

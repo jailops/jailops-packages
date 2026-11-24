@@ -42,13 +42,13 @@ Z=-z
 command -v zstd >/dev/null 2>&1 && Z=--zstd
 A=FreeBSD:15:amd64 B=FreeBSD:15:aarch64
 
-# --- the normal case: isms 0.9.0 on both ABIs, an older jailops-apps on aarch64, revisions and 0.10 > 0.9
+# --- the normal case: isms 0.9.0 on both ABIs, an older toolkit on aarch64, revisions and 0.10 > 0.9
 S=$T/site
-catalog "$S" $A $Z "$(entry isms 0.9.0 'ISMS platform' $A)" "$(entry jailops-apps 0.4.2 'App catalog' $A)" \
+catalog "$S" $A $Z "$(entry isms 0.9.0 'ISMS platform' $A)" "$(entry toolkit 0.4.2 'Toolkit' $A)" \
   "$(entry pkgops 0.10.0 'PkgOps' $A)" "$(entry hello 1.0.0_2 'Hello' $A)"
-catalog "$S" $B $Z "$(entry isms 0.9.0 'ISMS platform' $B)" "$(entry jailops-apps 0.4.1 'App catalog, older' $B)" \
+catalog "$S" $B $Z "$(entry isms 0.9.0 'ISMS platform' $B)" "$(entry toolkit 0.4.1 'Toolkit, older' $B)" \
   "$(entry pkgops 0.9.9 'PkgOps' $B)" "$(entry hello 1.0.0_10 'Hello' $B)" "$(entry armonly 0.1.0 'Only on arm' $B)"
-index "$S" "$A isms 0.8.1" "$A isms 0.9.0" "$B isms 0.8.1" "$B isms 0.9.0" "$A jailops-apps 0.4.2" "$B jailops-apps 0.4.1" \
+index "$S" "$A isms 0.8.1" "$A isms 0.9.0" "$B isms 0.8.1" "$B isms 0.9.0" "$A toolkit 0.4.2" "$B toolkit 0.4.1" \
   "$A pkgops 0.10.0" "$B pkgops 0.9.9" "$A hello 1.0.0_2" "$B hello 1.0.0_10" "$B armonly 0.1.0"
 gen "$S"; eq "a site with two ABIs: written" 0 $?
 has "it says what it wrote" "versions.json: 5 packages" "$T/out"
@@ -61,9 +61,9 @@ eq "isms: per ABI" "{'FreeBSD:15:aarch64': '0.9.0', 'FreeBSD:15:amd64': '0.9.0'}
 eq "isms: origin" jailops/isms "$(get "$S" 'd["packages"]["isms"]["origin"]')"
 eq "isms: comment" "ISMS platform" "$(get "$S" 'd["packages"]["isms"]["comment"]')"
 eq "isms: www" https://jailops.net "$(get "$S" 'd["packages"]["isms"]["www"]')"
-eq "ABIs that differ: the highest across them" 0.4.2 "$(get "$S" 'd["packages"]["jailops-apps"]["version"]')"
-eq "ABIs that differ: comment of the highest" "App catalog" "$(get "$S" 'd["packages"]["jailops-apps"]["comment"]')"
-eq "ABIs that differ: both listed" "{'FreeBSD:15:aarch64': '0.4.1', 'FreeBSD:15:amd64': '0.4.2'}" "$(get "$S" 'd["packages"]["jailops-apps"]["abis"]')"
+eq "ABIs that differ: the highest across them" 0.4.2 "$(get "$S" 'd["packages"]["toolkit"]["version"]')"
+eq "ABIs that differ: comment of the highest" "Toolkit" "$(get "$S" 'd["packages"]["toolkit"]["comment"]')"
+eq "ABIs that differ: both listed" "{'FreeBSD:15:aarch64': '0.4.1', 'FreeBSD:15:amd64': '0.4.2'}" "$(get "$S" 'd["packages"]["toolkit"]["abis"]')"
 eq "0.10.0 is above 0.9.9 (not text order)" 0.10.0 "$(get "$S" 'd["packages"]["pkgops"]["version"]')"
 eq "revision _10 is above _2" 1.0.0_10 "$(get "$S" 'd["packages"]["hello"]["version"]')"
 eq "a package of one ABI lists only that ABI" "['FreeBSD:15:aarch64']" "$(get "$S" 'list(d["packages"]["armonly"]["abis"])')"
@@ -73,7 +73,7 @@ cp "$S/versions.json" "$T/v1"; gen "$S"; cmp -s "$S/versions.json" "$T/v1"; eq "
 python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$S/versions.json"; eq "it is JSON" 0 $?
 
 # --- refusals: the file is only written from catalogs that agree with the index
-cp -R "$S" "$T/s2"; index "$T/s2" "$A isms 0.8.1" "$B isms 0.8.1" "$B isms 0.9.0" "$A jailops-apps 0.4.2" "$B jailops-apps 0.4.1" \
+cp -R "$S" "$T/s2"; index "$T/s2" "$A isms 0.8.1" "$B isms 0.8.1" "$B isms 0.9.0" "$A toolkit 0.4.2" "$B toolkit 0.4.1" \
   "$A pkgops 0.10.0" "$B pkgops 0.9.9" "$A hello 1.0.0_2" "$B hello 1.0.0_10" "$B armonly 0.1.0"
 gen "$T/s2"; eq "an entry not in pkgops-index.json: refused" 1 $?
 has "says which" "isms 0.9.0 is not in pkgops-index.json" "$T/out"
