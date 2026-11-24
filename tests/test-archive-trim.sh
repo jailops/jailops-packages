@@ -23,7 +23,7 @@ def e(name, ver, size=1000000):
     return out
 live, pruned = [], []
 for v in ("0.8.5", "0.8.6"): live += e("jailops", v, 10000000) + e("jailops-client", v, 2000000)
-live += e("jailops-apps", "0.4.2", 500000)
+live += e("toolkit", "0.4.2", 500000)
 for v in ("0.7.3", "0.8.3", "0.8.4"): pruned += e("jailops", v, 9000000)
 pruned += e("jailops-client", "0.8.4", 1900000)
 live += e("tool", "2.0,1") + e("tool", "1.10.0_1")
@@ -34,7 +34,7 @@ PY
 # ---- the archive: one release per version, behind a fake gh
 TAGS="$T/tags"
 for t in pkg-jailops-0.7.3 pkg-jailops-0.8.3 pkg-jailops-0.8.4 pkg-jailops-0.8.5 pkg-jailops-0.8.6 \
-         pkg-jailops-client-0.8.4 pkg-jailops-client-0.8.5 pkg-jailops-client-0.8.6 pkg-jailops-apps-0.4.2 \
+         pkg-jailops-client-0.8.4 pkg-jailops-client-0.8.5 pkg-jailops-client-0.8.6 pkg-toolkit-0.4.2 \
          'pkg-tool-1.9.0' 'pkg-tool-1.10.0' 'pkg-tool-1.10.0_1' 'pkg-tool-2.0,1' pkg-unknown-1.0.0; do echo "$t"; done > "$TAGS"
 cp "$TAGS" "$T/tags.all"
 mkdir -p "$T/bin"
@@ -69,7 +69,7 @@ trim --keep 2; cp "$T/out" "$T/out1"; trim --keep 2; cmp -s "$T/out" "$T/out1" &
 grep -q 'nothing changed' "$T/out" && ok "dry run says that it changed nothing" || bad "dry run: no 'nothing changed' line"
 eq "dry run: nothing deleted" 0 "$(wc -l < "$T/gh.log" | tr -d ' ')"
 [ ! -e "$T/retired.yaml" ] && ok "dry run: retired.yaml not written" || bad "dry run wrote retired.yaml"
-grep -q 'pkg-jailops-0.8.5\|pkg-jailops-0.8.6\|pkg-jailops-client-0.8.5\|pkg-jailops-client-0.8.6\|jailops-apps\|pkg-tool-2.0\|pkg-tool-1.10.0_1' "$T/out" && bad "plan names a version of the newest two, or one that is on the site" || ok "plan: the newest versions and everything on the site stay"
+grep -q 'pkg-jailops-0.8.5\|pkg-jailops-0.8.6\|pkg-jailops-client-0.8.5\|pkg-jailops-client-0.8.6\|toolkit\|pkg-tool-2.0\|pkg-tool-1.10.0_1' "$T/out" && bad "plan names a version of the newest two, or one that is on the site" || ok "plan: the newest versions and everything on the site stay"
 grep -q 'pkg-unknown' "$T/out" && bad "plan names a release the index does not know" || ok "plan: a release the index does not know is not touched"
 trim --keep 1; plan=$(grep '^  pkg-' "$T/out" | sed 's/  (.*//' | tr -d ' ' | tr '\n' ' ')
 eq "--keep 1: the live site still keeps its versions (nothing on the site is planned)" "pkg-jailops-0.7.3 pkg-jailops-0.8.3 pkg-jailops-0.8.4 pkg-jailops-client-0.8.4 pkg-tool-1.9.0 pkg-tool-1.10.0 " "$plan"
@@ -93,7 +93,7 @@ cp "$T/tags.all" "$TAGS"
 # 5. --apply: record, then delete, in the order of the plan
 trim --keep 2 --apply; eq "apply succeeds" 0 $?
 eq "apply: the releases of the plan are deleted, in order" "pkg-jailops-0.7.3 pkg-jailops-0.8.3 pkg-jailops-0.8.4 pkg-jailops-client-0.8.4 pkg-tool-1.9.0 pkg-tool-1.10.0 " "$(tr '\n' ' ' < "$T/gh.log")"
-eq "apply: the others are still in the archive" "pkg-jailops-0.8.5 pkg-jailops-0.8.6 pkg-jailops-apps-0.4.2 pkg-jailops-client-0.8.5 pkg-jailops-client-0.8.6 pkg-tool-1.10.0_1 pkg-tool-2.0,1 pkg-unknown-1.0.0 " "$(sort "$TAGS" | tr '\n' ' ')"
+eq "apply: the others are still in the archive" "pkg-jailops-0.8.5 pkg-jailops-0.8.6 pkg-jailops-client-0.8.5 pkg-jailops-client-0.8.6 pkg-tool-1.10.0_1 pkg-tool-2.0,1 pkg-toolkit-0.4.2 pkg-unknown-1.0.0 " "$(sort "$TAGS" | tr '\n' ' ')"
 eq "retired.yaml: one entry per file (six versions, two ABIs)" 12 "$(grep -c 'abi:' "$T/retired.yaml")"
 grep -q 'name: jailops$' "$T/retired.yaml" && grep -q "retired: 2030-01-02" "$T/retired.yaml" && grep -q "sha256: $(sha 'FreeBSD:15:amd64-jailops-0.8.3')" "$T/retired.yaml" && ok "retired.yaml: name, date and the sha256 of the index" || bad "retired.yaml: fields"
 grep -q 'size: 9000000' "$T/retired.yaml" && ok "retired.yaml: the size" || bad "retired.yaml: size"

@@ -35,48 +35,50 @@ STUB
 chmod +x "$T/bin/pkgops"
 PATH="$T/bin:$PATH"; export PATH
 export SOURCE_DATE_EPOCH=1700000000
+# the source of the package built here is a (nearly empty) directory, not a download
+mkdir -p "$T/fake-src"; export SRC_UNISUPPLY=$T/fake-src; unset GITHUB_ACTIONS
 
 D=$T/dist
 
 # only the ABI asked for is built, and recorded
-DIST_DIR=$D BUILD_LABEL=one sh "$R/scripts/build-pkg.sh" jailops-apps:FreeBSD:15:aarch64 > "$T/build.out" 2>&1; eq "build of one ABI: exit 0" 0 $?
-V=$(mf_get jailops-apps version)
-eq "only that ABI was built" "FreeBSD:15:aarch64/jailops-apps-$V.pkg" "$(cd "$D" && find . -name '*.pkg' | sed 's|^\./||')"
+DIST_DIR=$D BUILD_LABEL=one sh "$R/scripts/build-pkg.sh" unisupply:FreeBSD:15:aarch64 > "$T/build.out" 2>&1; eq "build of one ABI: exit 0" 0 $?
+V=$(mf_get unisupply version)
+eq "only that ABI was built" "FreeBSD:15:aarch64/unisupply-$V.pkg" "$(cd "$D" && find . -name '*.pkg' | sed 's|^\./||')"
 REC=$D/records/one.json
 eq "the record: one package" 1 "$(jq '.packages | length' "$REC")"
 eq "the record: the ABI" FreeBSD:15:aarch64 "$(jq -r '.packages[0].abi' "$REC")"
 eq "the record: the version" "$V" "$(jq -r '.packages[0].version' "$REC")"
-eq "the record: the sha256 of the file" "$(sha256_of "$D/FreeBSD:15:aarch64/jailops-apps-$V.pkg")" "$(jq -r '.packages[0].sha256' "$REC")"
+eq "the record: the sha256 of the file" "$(sha256_of "$D/FreeBSD:15:aarch64/unisupply-$V.pkg")" "$(jq -r '.packages[0].sha256' "$REC")"
 eq "the record: the commit" "$COMMIT" "$(jq -r '.commit' "$REC")"
 eq "the record: the pkgops that built" "pkgops stub 1.2.3" "$(jq -r '.toolchain.pkgops' "$REC")"
-eq "the record: a local package names its tree" "$(git -C "$R" rev-parse HEAD:main/jailops-apps)" "$(jq -r '.packages[0].source.local' "$REC")"
+eq "the record: the source of the package" "$(up_get unisupply sha256)" "$(jq -r '.packages[0].source.sha256' "$REC")"
 eq "the record: the toolchain keys" "go node npm pkgops" "$(jq -r '.toolchain | keys_unsorted | join(" ")' "$REC")"
 
 # an ABI the manifest does not have is refused
-eq "an unknown ABI: refused" 1 "$(rc env DIST_DIR=$T/d2 sh "$R/scripts/build-pkg.sh" jailops-apps:FreeBSD:14:amd64)"
+eq "an unknown ABI: refused" 1 "$(rc env DIST_DIR=$T/d2 sh "$R/scripts/build-pkg.sh" unisupply:FreeBSD:14:amd64)"
 
 # the whole package: both ABIs
 rm -rf "$D"
-DIST_DIR=$D BUILD_LABEL=build sh "$R/scripts/build-pkg.sh" jailops-apps > "$T/build.out" 2>&1; eq "build of every ABI: exit 0" 0 $?
+DIST_DIR=$D BUILD_LABEL=build sh "$R/scripts/build-pkg.sh" unisupply > "$T/build.out" 2>&1; eq "build of every ABI: exit 0" 0 $?
 eq "the record: both ABIs" 2 "$(jq '.packages | length' "$D/records/build.json")"
 
 # verify-build-record: the files are the recorded ones
 eq "verify: the records match" 0 "$(rc env EXPECT_COMMIT=$COMMIT sh "$R/scripts/verify-build-record.sh" "$D")"
 eq "verify: another commit: refused" 1 "$(rc env EXPECT_COMMIT=0000000000000000000000000000000000000000 sh "$R/scripts/verify-build-record.sh" "$D")"
 has "verify: names the commits" "built from $COMMIT" "$T/out"
-printf 'x' >> "$D/FreeBSD:15:amd64/jailops-apps-$V.pkg"
+printf 'x' >> "$D/FreeBSD:15:amd64/unisupply-$V.pkg"
 eq "verify: a changed file: refused" 1 "$(rc sh "$R/scripts/verify-build-record.sh" "$D")"
 has "verify: the size or hash differs" "the size is not the recorded" "$T/out"
-printf '%s %s %s\n' jailops-apps "$V" FreeBSD:15:amd64 > "$D/FreeBSD:15:amd64/jailops-apps-$V.pkg"
+printf '%s %s %s\n' unisupply "$V" FreeBSD:15:amd64 > "$D/FreeBSD:15:amd64/unisupply-$V.pkg"
 eq "verify: the file restored: accepted" 0 "$(rc sh "$R/scripts/verify-build-record.sh" "$D")"
 printf 'x' > "$D/FreeBSD:15:amd64/stranger-1.0.pkg"
 eq "verify: a package in no record: refused" 1 "$(rc sh "$R/scripts/verify-build-record.sh" "$D")"
 has "verify: names it" "stranger-1.0.pkg is in" "$T/out"
 rm -f "$D/FreeBSD:15:amd64/stranger-1.0.pkg"
-rm "$D/FreeBSD:15:aarch64/jailops-apps-$V.pkg"
+rm "$D/FreeBSD:15:aarch64/unisupply-$V.pkg"
 eq "verify: a recorded file that is missing: refused" 1 "$(rc sh "$R/scripts/verify-build-record.sh" "$D")"
-printf '%s %s %s\n' jailops-apps "$V" FreeBSD:15:aarch64 > "$D/FreeBSD:15:aarch64/jailops-apps-$V.pkg"
-sed -i.bak 's/^version: .*/version: 9.9.9/' "$R/main/jailops-apps/pkgops.yaml"; rm -f "$R/main/jailops-apps/pkgops.yaml.bak"
+printf '%s %s %s\n' unisupply "$V" FreeBSD:15:aarch64 > "$D/FreeBSD:15:aarch64/unisupply-$V.pkg"
+sed -i.bak 's/^version: .*/version: 9.9.9/' "$R/main/unisupply/pkgops.yaml"; rm -f "$R/main/unisupply/pkgops.yaml.bak"
 eq "verify: a record of an older version than the manifest: refused" 1 "$(rc sh "$R/scripts/verify-build-record.sh" "$D")"
 git -C "$R" checkout -q -- .
 rm -rf "$D/records"
@@ -84,6 +86,7 @@ eq "verify: packages and no record: refused" 1 "$(rc sh "$R/scripts/verify-build
 mkdir -p "$T/empty"
 eq "verify: nothing built, nothing to check" 0 "$(rc sh "$R/scripts/verify-build-record.sh" "$T/empty")"
 
+unset SRC_UNISUPPLY
 # strict: a package whose source is not ready stops the run on master, is skipped in a pull request
 sed -i 's/^sha256:.*/sha256: PENDING/' "$R/main/unisupply/upstream.yaml"
 eq "not strict: skipped, exit 0" 0 "$(rc env DIST_DIR=$T/d3 sh "$R/scripts/build-pkg.sh" unisupply)"
